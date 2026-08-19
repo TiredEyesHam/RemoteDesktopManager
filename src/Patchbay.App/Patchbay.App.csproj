@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The WPF shell. UseWindowsForms is on because the RDP control is
+       hosted through WindowsFormsHost. -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>Patchbay.App</RootNamespace>
+    <AssemblyName>Patchbay</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+  </PropertyGroup>
+
+  <!-- WinForms is referenced only for WindowsFormsHost, so drop its implicit
+       using. Without this, Application, MessageBox, Clipboard, Point, Size,
+       Color and Brush are all ambiguous between the two frameworks. WPF wins
+       by default here; WinForms types get qualified at the one place that
+       needs them. -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Patchbay.Core\Patchbay.Core.csproj" />
+    <ProjectReference Include="..\Patchbay.Rdp\Patchbay.Rdp.csproj" />
+  </ItemGroup>
+
+</Project>

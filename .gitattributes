@@ -1,0 +1,62 @@
+## Normalise line endings. Git stores LF; Windows checkouts get CRLF
+## where the tooling expects it.
+* text=auto
+
+# Source
+*.cs        text diff=csharp
+*.csproj    text eol=crlf
+*.sln       text eol=crlf
+*.slnx      text eol=crlf
+*.props     text
+*.targets   text
+*.xaml      text
+*.axaml     text
+*.config    text
+*.ruleset   text
+*.resx      text
+*.manifest  text
+
+# Web / docs / data
+*.md        text diff=markdown
+*.json      text
+*.yml       text
+*.yaml      text
+*.xml       text
+*.html      text
+*.css       text
+*.js        text
+*.svg       text
+
+# Scripts — the shell decides the ending, not the platform
+*.ps1       text eol=crlf
+*.psm1      text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+*.sh        text eol=lf
+
+# Binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.icns      binary
+*.ttf       binary
+*.otf       binary
+*.woff      binary
+*.woff2     binary
+*.dll       binary
+*.exe       binary
+*.pdb       binary
+*.snk       binary
+*.pfx       binary
+*.zip       binary
+*.7z        binary
+*.msix      binary
+*.msi       binary
+
+# Generated — collapse in diffs and exclude from language stats
+*.Designer.cs   linguist-generated=true
+*.g.cs          linguist-generated=true
+*.g.i.cs        linguist-generated=true
+docs/**         linguist-documentation=true

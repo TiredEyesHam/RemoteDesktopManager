@@ -1,0 +1,46 @@
+<Project>
+
+  <!-- Shared by every project in the solution. -->
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <Deterministic>true</Deterministic>
+    <NeutralLanguage>en-GB</NeutralLanguage>
+  </PropertyGroup>
+
+  <!-- Analysers. Style rules come from .editorconfig and are enforced at build
+       so CI catches formatting, not reviewers. -->
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- Warnings fail the build in CI, but only warn locally. A red build on a
+       stray unused variable mid-refactor helps nobody. -->
+  <PropertyGroup Condition="'$(ContinuousIntegrationBuild)' == 'true'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Product>Patchbay</Product>
+    <Company>Patchbay</Company>
+    <Authors>Patchbay contributors</Authors>
+    <Copyright>Copyright © 2026 TiredEyesHam</Copyright>
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionSuffix>alpha</VersionSuffix>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <!-- Windows targets: build against the 22H2 SDK, run on 1809 and later. -->
+  <PropertyGroup Condition="$(TargetFramework.Contains('-windows'))">
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <Platforms>x64;ARM64</Platforms>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+
+</Project>

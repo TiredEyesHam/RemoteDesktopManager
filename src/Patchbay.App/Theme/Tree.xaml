@@ -1,0 +1,142 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:conv="clr-namespace:Patchbay.App.Converters">
+
+    <!-- ── Chips ───────────────────────────────────────────────────────────
+         The small pills that say where a setting came from. They carry real
+         information, so they are legible rather than decorative: an inherited
+         value names the group it came from, an override says so. -->
+    <Style x:Key="Chip" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource BrushSurfaceRaised}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource RadiusPill}" />
+        <Setter Property="Padding" Value="7,1" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="ChipAccent" TargetType="Border" BasedOn="{StaticResource Chip}">
+        <Setter Property="Background" Value="{DynamicResource BrushAccentSoft}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BrushAccentBorder}" />
+    </Style>
+
+    <Style x:Key="ChipLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource SizeCaption}" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushTextMuted}" />
+    </Style>
+
+    <Style x:Key="ChipLabelAccent" TargetType="TextBlock" BasedOn="{StaticResource ChipLabel}">
+        <Setter Property="Foreground" Value="{DynamicResource BrushAccent}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- ── Tree ────────────────────────────────────────────────────────────
+         A row is a full-width band; the indentation lives inside it, applied
+         to the row's content rather than to the item container. Indenting the
+         container instead is the easy way, and it leaves the selection
+         highlight starting further right on every level, which looks like a
+         bug at depth three. -->
+    <Style x:Key="TreeExpander" TargetType="ToggleButton">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="Transparent">
+                        <Path x:Name="Chevron"
+                              Data="M 0,0 L 4,4 L 0,8"
+                              Stroke="{DynamicResource BrushTextFaint}"
+                              StrokeThickness="1.5"
+                              StrokeEndLineCap="Round"
+                              StrokeStartLineCap="Round"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              RenderTransformOrigin="0.35,0.5" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <!-- The whole transform is replaced rather than its
+                             Angle animated: a trigger cannot target a named
+                             transform, only a named element. -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Chevron" Property="RenderTransform">
+                                <Setter.Value>
+                                    <RotateTransform Angle="90" />
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Chevron" Property="Stroke" Value="{DynamicResource BrushText}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="TreeViewItem">
+        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+        <Setter Property="Visibility" Value="{Binding IsVisible, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource BrushText}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TreeViewItem">
+                    <StackPanel>
+                        <Border x:Name="Row"
+                                Background="Transparent"
+                                CornerRadius="{DynamicResource RadiusMedium}"
+                                Margin="4,1"
+                                MinHeight="44"
+                                SnapsToDevicePixels="True">
+                            <Grid Margin="{Binding Indent}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="18" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ToggleButton x:Name="Expander"
+                                              Style="{StaticResource TreeExpander}"
+                                              Visibility="{Binding HasChildren, Converter={x:Static conv:ValueConverters.BoolToVisibility}}"
+                                              IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" />
+                                <ContentPresenter Grid.Column="1"
+                                                  ContentSource="Header"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ItemsPresenter x:Name="ItemsHost" Visibility="Collapsed" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsExpanded" Value="True">
+                            <Setter TargetName="ItemsHost" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource BrushSurfaceHover}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Row" Property="Background" Value="{DynamicResource BrushAccentSoft}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="TreeView">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0,4" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <!-- The tree has to stay smooth with a few thousand hosts in it, which
+             is an ordinary size for an estate someone would import. -->
+        <Setter Property="VirtualizingStackPanel.IsVirtualizing" Value="True" />
+        <Setter Property="VirtualizingStackPanel.VirtualizationMode" Value="Recycling" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    </Style>
+
+</ResourceDictionary>

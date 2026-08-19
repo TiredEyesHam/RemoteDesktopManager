@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The RDP ActiveX interop and session host. Windows-only by nature:
+       it wraps mstscax.dll and needs a WinForms control to host an HWND.
+       Patchbay.App talks to this through IRemoteSessionHost only. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>Patchbay.Rdp</RootNamespace>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Patchbay.Core\Patchbay.Core.csproj" />
+  </ItemGroup>
+
+</Project>

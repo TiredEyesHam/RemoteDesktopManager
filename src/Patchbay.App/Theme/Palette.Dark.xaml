@@ -1,0 +1,64 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Dark palette. Not an inversion of the light one: the accent is lifted
+         and desaturated so it stays legible on a dark ground, and the greens
+         and reds are pulled up for the same reason. -->
+
+    <sys:String x:Key="ThemeName">Dark</sys:String>
+
+    <Color x:Key="ColourWindow">#14171C</Color>
+    <Color x:Key="ColourSurface">#1B1F26</Color>
+    <Color x:Key="ColourSurfaceRaised">#232830</Color>
+    <Color x:Key="ColourSurfaceHover">#272D37</Color>
+    <Color x:Key="ColourSurfaceActive">#2F3743</Color>
+    <Color x:Key="ColourBorder">#2C323C</Color>
+    <Color x:Key="ColourBorderStrong">#3D4552</Color>
+
+    <Color x:Key="ColourText">#E7EBF2</Color>
+    <Color x:Key="ColourTextMuted">#9AA5B6</Color>
+    <Color x:Key="ColourTextFaint">#6B7686</Color>
+    <Color x:Key="ColourTextOnAccent">#0A1220</Color>
+
+    <Color x:Key="ColourAccent">#62A8FF</Color>
+    <Color x:Key="ColourAccentHover">#7CB8FF</Color>
+    <Color x:Key="ColourAccentPressed">#4A93EC</Color>
+    <Color x:Key="ColourAccentSoft">#1B2A44</Color>
+    <Color x:Key="ColourAccentBorder">#2E4A72</Color>
+
+    <Color x:Key="ColourGood">#3FBE8A</Color>
+    <Color x:Key="ColourWarn">#E0A33A</Color>
+    <Color x:Key="ColourBad">#F2666F</Color>
+    <Color x:Key="ColourBadSoft">#2C1B1E</Color>
+    <Color x:Key="ColourBadBorder">#4E2C31</Color>
+
+    <SolidColorBrush x:Key="BrushWindow" Color="{StaticResource ColourWindow}" />
+    <SolidColorBrush x:Key="BrushSurface" Color="{StaticResource ColourSurface}" />
+    <SolidColorBrush x:Key="BrushSurfaceRaised" Color="{StaticResource ColourSurfaceRaised}" />
+    <SolidColorBrush x:Key="BrushSurfaceHover" Color="{StaticResource ColourSurfaceHover}" />
+    <SolidColorBrush x:Key="BrushSurfaceActive" Color="{StaticResource ColourSurfaceActive}" />
+    <SolidColorBrush x:Key="BrushBorder" Color="{StaticResource ColourBorder}" />
+    <SolidColorBrush x:Key="BrushBorderStrong" Color="{StaticResource ColourBorderStrong}" />
+
+    <SolidColorBrush x:Key="BrushText" Color="{StaticResource ColourText}" />
+    <SolidColorBrush x:Key="BrushTextMuted" Color="{StaticResource ColourTextMuted}" />
+    <SolidColorBrush x:Key="BrushTextFaint" Color="{StaticResource ColourTextFaint}" />
+    <SolidColorBrush x:Key="BrushTextOnAccent" Color="{StaticResource ColourTextOnAccent}" />
+
+    <SolidColorBrush x:Key="BrushAccent" Color="{StaticResource ColourAccent}" />
+    <SolidColorBrush x:Key="BrushAccentHover" Color="{StaticResource ColourAccentHover}" />
+    <SolidColorBrush x:Key="BrushAccentPressed" Color="{StaticResource ColourAccentPressed}" />
+    <SolidColorBrush x:Key="BrushAccentSoft" Color="{StaticResource ColourAccentSoft}" />
+    <SolidColorBrush x:Key="BrushAccentBorder" Color="{StaticResource ColourAccentBorder}" />
+
+    <SolidColorBrush x:Key="BrushGood" Color="{StaticResource ColourGood}" />
+    <SolidColorBrush x:Key="BrushWarn" Color="{StaticResource ColourWarn}" />
+    <SolidColorBrush x:Key="BrushBad" Color="{StaticResource ColourBad}" />
+    <SolidColorBrush x:Key="BrushBadSoft" Color="{StaticResource ColourBadSoft}" />
+    <SolidColorBrush x:Key="BrushBadBorder" Color="{StaticResource ColourBadBorder}" />
+
+    <SolidColorBrush x:Key="BrushScrollThumb" Color="{StaticResource ColourText}" Opacity="0.20" />
+    <SolidColorBrush x:Key="BrushScrollThumbHover" Color="{StaticResource ColourText}" Opacity="0.34" />
+
+</ResourceDictionary>

@@ -1,0 +1,69 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- Light palette. Every key here has a twin in Palette.Dark.xaml; the two
+         are swapped wholesale at runtime, so a key added to one and forgotten
+         in the other throws at load rather than falling back to black. -->
+
+    <sys:String x:Key="ThemeName">Light</sys:String>
+
+    <!-- Neutrals are biased a few degrees towards the accent rather than being
+         pure grey. It is the difference between a surface that looks chosen
+         and one that looks like it was left at the default. -->
+    <Color x:Key="ColourWindow">#EFF1F5</Color>
+    <Color x:Key="ColourSurface">#FFFFFF</Color>
+    <Color x:Key="ColourSurfaceRaised">#F7F8FA</Color>
+    <Color x:Key="ColourSurfaceHover">#EAEEF4</Color>
+    <Color x:Key="ColourSurfaceActive">#E1E7EF</Color>
+    <Color x:Key="ColourBorder">#DFE3EA</Color>
+    <Color x:Key="ColourBorderStrong">#C3CAD6</Color>
+
+    <Color x:Key="ColourText">#171B22</Color>
+    <Color x:Key="ColourTextMuted">#5A6474</Color>
+    <Color x:Key="ColourTextFaint">#8A94A6</Color>
+    <Color x:Key="ColourTextOnAccent">#FFFFFF</Color>
+
+    <Color x:Key="ColourAccent">#0F62C8</Color>
+    <Color x:Key="ColourAccentHover">#1A72DC</Color>
+    <Color x:Key="ColourAccentPressed">#0B4E9F</Color>
+    <Color x:Key="ColourAccentSoft">#E4EDFB</Color>
+    <Color x:Key="ColourAccentBorder">#B9D2F4</Color>
+
+    <!-- Semantic colours stay separate from the accent. A connected session
+         and a primary button must not be the same shade, or neither reads. -->
+    <Color x:Key="ColourGood">#1E9E6A</Color>
+    <Color x:Key="ColourWarn">#B87610</Color>
+    <Color x:Key="ColourBad">#CE3B44</Color>
+    <Color x:Key="ColourBadSoft">#FBE9EA</Color>
+    <Color x:Key="ColourBadBorder">#F0C4C7</Color>
+
+    <SolidColorBrush x:Key="BrushWindow" Color="{StaticResource ColourWindow}" />
+    <SolidColorBrush x:Key="BrushSurface" Color="{StaticResource ColourSurface}" />
+    <SolidColorBrush x:Key="BrushSurfaceRaised" Color="{StaticResource ColourSurfaceRaised}" />
+    <SolidColorBrush x:Key="BrushSurfaceHover" Color="{StaticResource ColourSurfaceHover}" />
+    <SolidColorBrush x:Key="BrushSurfaceActive" Color="{StaticResource ColourSurfaceActive}" />
+    <SolidColorBrush x:Key="BrushBorder" Color="{StaticResource ColourBorder}" />
+    <SolidColorBrush x:Key="BrushBorderStrong" Color="{StaticResource ColourBorderStrong}" />
+
+    <SolidColorBrush x:Key="BrushText" Color="{StaticResource ColourText}" />
+    <SolidColorBrush x:Key="BrushTextMuted" Color="{StaticResource ColourTextMuted}" />
+    <SolidColorBrush x:Key="BrushTextFaint" Color="{StaticResource ColourTextFaint}" />
+    <SolidColorBrush x:Key="BrushTextOnAccent" Color="{StaticResource ColourTextOnAccent}" />
+
+    <SolidColorBrush x:Key="BrushAccent" Color="{StaticResource ColourAccent}" />
+    <SolidColorBrush x:Key="BrushAccentHover" Color="{StaticResource ColourAccentHover}" />
+    <SolidColorBrush x:Key="BrushAccentPressed" Color="{StaticResource ColourAccentPressed}" />
+    <SolidColorBrush x:Key="BrushAccentSoft" Color="{StaticResource ColourAccentSoft}" />
+    <SolidColorBrush x:Key="BrushAccentBorder" Color="{StaticResource ColourAccentBorder}" />
+
+    <SolidColorBrush x:Key="BrushGood" Color="{StaticResource ColourGood}" />
+    <SolidColorBrush x:Key="BrushWarn" Color="{StaticResource ColourWarn}" />
+    <SolidColorBrush x:Key="BrushBad" Color="{StaticResource ColourBad}" />
+    <SolidColorBrush x:Key="BrushBadSoft" Color="{StaticResource ColourBadSoft}" />
+    <SolidColorBrush x:Key="BrushBadBorder" Color="{StaticResource ColourBadBorder}" />
+
+    <SolidColorBrush x:Key="BrushScrollThumb" Color="{StaticResource ColourText}" Opacity="0.22" />
+    <SolidColorBrush x:Key="BrushScrollThumbHover" Color="{StaticResource ColourText}" Opacity="0.38" />
+
+</ResourceDictionary>

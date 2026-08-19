@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Domain model, inheritance resolution, storage and importers.
+       Deliberately platform-neutral: no WPF, no COM, no Windows APIs.
+       CA1416 enforces this, and it is what keeps a non-Windows shell
+       (M8-19) possible later. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Patchbay.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>

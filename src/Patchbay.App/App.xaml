@@ -1,0 +1,15 @@
+<Application x:Class="Patchbay.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- The palette must stay first: ThemeManager replaces entry zero
+                 wholesale when the theme changes. -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Theme/Palette.Light.xaml" />
+                <ResourceDictionary Source="Theme/Controls.xaml" />
+                <ResourceDictionary Source="Theme/Tree.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

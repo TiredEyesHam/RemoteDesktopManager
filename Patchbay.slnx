@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Patchbay.App/Patchbay.App.csproj" />
+    <Project Path="src/Patchbay.Core/Patchbay.Core.csproj" />
+    <Project Path="src/Patchbay.Rdp/Patchbay.Rdp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Patchbay.Tests/Patchbay.Tests.csproj" />
+  </Folder>
+</Solution>

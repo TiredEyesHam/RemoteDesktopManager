@@ -75,37 +75,24 @@ public readonly record struct SessionPlacement
 ///   right answer for reading a log or lining up a screenshot.</item>
 /// </list>
 ///
-/// <para>
-/// <b>The non-obvious part is the letterbox.</b> The control's own
-/// <c>SmartSizing</c> scales the remote desktop to fill whatever window it is
-/// given, whatever shape that window is — hand it the whole pane and a 16:9
-/// desktop in a tall pane comes back stretched, which is a maddening thing to
-/// look at because nothing about it announces itself as wrong. So the picture
-/// is not given the whole pane. It is given the largest rectangle of the
-/// session's own shape that fits, centred, and the pane's background shows
-/// above and below. The scaling then cannot distort.
-/// </para>
+/// The non-obvious part is the letterbox. The control's <c>SmartSizing</c>
+/// scales the desktop to fill whatever window it is given, whatever shape that
+/// window is, so handing it the whole pane returns a 16:9 desktop stretched to
+/// fit a tall one. Instead the picture gets the largest rectangle of the
+/// session's own shape that fits, centred, with the pane's background above
+/// and below. The scaling then cannot distort.
 ///
-/// <para>
-/// Smart sizing enlarges as well as shrinks. A 1024×768 session in a maximised
-/// tab drawn at its own size is a small rectangle marooned in a large empty
-/// one, which reads as a bug rather than as a choice; mstsc and RDCMan both
-/// fill the space, and so does this.
-/// </para>
+/// Smart sizing enlarges as well as shrinks. A 1024×768 session drawn at its
+/// own size in a maximised tab is a small rectangle marooned in a large empty
+/// one; mstsc and RDCMan both fill the space.
 ///
-/// <para>
-/// What smart sizing is <i>not</i> is a resolution change. Text at sixty per
-/// cent is blurred text, not smaller text, and no amount of scaling gives the
-/// far end more room to put things. That is <c>M5-10</c>'s job, and it is why
-/// this is the default rather than the answer.
-/// </para>
+/// It is not a resolution change. Text at sixty per cent is blurred text, not
+/// smaller text, and no amount of scaling gives the far end more room. That is
+/// M5-10.
 ///
-/// <para>
-/// This lives in <c>Core</c> because it is arithmetic with right answers, and
-/// because the alternative — working it out inside a resize handler — is a
-/// place where being one pixel out shows up as a flickering scrollbar and
-/// nowhere else.
-/// </para>
+/// Lives in <c>Core</c> because it is arithmetic with right answers, and
+/// because working it out inside a resize handler is where being one pixel out
+/// shows up as a flickering scrollbar and nowhere else.
 /// </summary>
 public static class SessionScaling
 {

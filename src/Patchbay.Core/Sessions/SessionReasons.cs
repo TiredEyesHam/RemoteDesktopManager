@@ -7,36 +7,24 @@ namespace Patchbay.Core.Sessions;
 /// (M4-07). Plugs straight into <see cref="SessionSignalRouter"/>'s
 /// <c>describe</c> seam.
 ///
-/// <para>
-/// <b>Most of this is not a table, and that is the finding.</b> The obvious
-/// shape for this task is a big switch from disconnect reason to sentence, and
-/// writing one by hand produces confident wrong text. The reasons are
-/// composed, not enumerated — 260, 516, 772, 1028, 1288 and 1540 all describe
-/// the same "cannot find that computer" family, because the low byte is the
-/// class and the high byte is the detail — so a hand-written table is either
-/// enormous or wrong, and the way to find out which is to ask the control.
+/// Mostly not a table. Disconnect reasons are composed rather than
+/// enumerated — the low byte is the class and the high byte the detail, so
+/// 260, 516, 772, 1028, 1288 and 1540 all mean "cannot find that computer" —
+/// and a hand-written switch is either enormous or wrong.
 /// <c>GetErrorDescription(disconnectReason, extendedDisconnectReason)</c> is
-/// Microsoft's own text for its own codes, and it arrives already translated
-/// into the language Windows is running in. Patchbay cannot do either of those
-/// things, so it does not try.
-/// </para>
+/// Microsoft's own text for its own codes, already translated into the
+/// language Windows is running in. Patchbay can do neither, so it asks.
 ///
-/// <para>
-/// <b>What Patchbay does say for itself is the ordinary ending</b>, because
-/// there the control is actively wrong. Asked about reason 1 — a disconnect
-/// this computer asked for — it answers "An internal error has occurred", and
-/// so it does for reason 2, someone signing out. Those are the two commonest
-/// ways a session ends. Handing that sentence to somebody who just closed a
-/// tab is worse than saying nothing, so the ordinary endings never reach the
-/// control at all.
-/// </para>
+/// The exception is the ordinary ending, where the control is wrong. Asked
+/// about reason 1, a disconnect this computer requested, it answers "An
+/// internal error has occurred", and the same for reason 2, someone signing
+/// out. Those are the two commonest ways a session ends, so they never reach
+/// the control.
 ///
-/// <para>
-/// <b>And where nothing has verified a meaning, the number stands.</b> The
-/// fatal-error codes have no table here for that reason: a plausible sentence
-/// about a code nobody has checked is a worse outcome than a number somebody
-/// can search for, because only one of the two is obviously incomplete.
-/// </para>
+/// Where nothing has verified a meaning the number stands. The fatal-error
+/// codes have no table for that reason: a plausible sentence about an
+/// unchecked code is worse than a number somebody can search for, because only
+/// one of the two is obviously incomplete.
 /// </summary>
 public sealed class SessionReasons
 {

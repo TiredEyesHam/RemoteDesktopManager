@@ -3,69 +3,37 @@ using Patchbay.Core.Model;
 namespace Patchbay.Core.Sessions;
 
 /// <summary>
-/// Turns a resolved <see cref="SessionRequest"/> into the list of properties to
-/// write on an RDP control (M4-04).
+/// Turns a resolved <see cref="SessionRequest"/> into the list of properties
+/// to write on an RDP control (M4-04).
 ///
-/// <para>
-/// <b>A plan, not a sequence of calls.</b> Every write to the control goes out
-/// late-bound by name, so the compiler cannot check any of it. What it can
-/// check is nothing; what a test can check is a list. Building the list here —
-/// in a project with no COM, no Windows target and no control to talk to —
-/// puts every decision worth getting wrong somewhere it can be read and
-/// asserted: which settings object a property lives on, which number a gateway
-/// mode is, whether a redirection that was turned off actually got sent.
-/// </para>
+/// A plan rather than a sequence of calls. Every write goes out late-bound by
+/// name, so the compiler checks none of it; a list can be checked, and built
+/// and tested in a project with no COM and no control to talk to. That puts
+/// the decisions worth getting wrong somewhere they can be asserted: which
+/// settings object a property lives on, which number a gateway mode is,
+/// whether a redirection that was turned off actually got sent.
 ///
-/// <para>
-/// <b>What is deliberately not here.</b> Anything a document holds. A password
-/// is in the plan (M4-10) but it comes from the <see cref="SessionRequest"/>
-/// and never from <see cref="ConnectionSettings"/>, because the document holds
-/// a user name, a domain and a pointer to a profile and never a secret (M3-02)
-/// — so there is no path by which saving a connection file writes a password
-/// into it. Smart sizing is not here either, because it stopped being a
-/// document setting the moment a tab could toggle it — <c>M5-09</c> owns it,
-/// and two owners for one property is how a session comes back from a
-/// reconnect having undone what somebody just chose.
-/// </para>
+/// Nothing a document holds is skipped, and nothing it does not hold is
+/// invented. The password comes from the <see cref="SessionRequest"/> and
+/// never from <see cref="ConnectionSettings"/> (M3-02, M4-10), so saving a
+/// connection file cannot write a secret into it. Smart sizing is not here at
+/// all — M5-09 owns it once a tab can toggle it.
 ///
-/// <para>
-/// <b>The spellings are copied from the type library, not from memory.</b>
-/// A control given a name it does not have reports <c>Unsupported</c> and
-/// carries on, so a name that is wrong fails silently and produces a session
-/// that is not the session somebody configured.
-/// </para>
+/// Names are copied from the type library. A control given a name it does not
+/// have reports <c>Unsupported</c> and carries on, so a wrong name fails
+/// silently and produces a session nobody configured.
 ///
-/// <para>
-/// The names here differ from the model's in three ways, and only one of them
-/// bites. <c>GatewayHostname</c> and <c>GatewayUsername</c> each carry one
-/// capital where the model has two, <c>RedirectPOSDevices</c> shouts its
-/// middle three letters, and <c>keepAliveInterval</c> starts lower case —
-/// but those are differences of <em>case</em>, and dispatch lookup resolves
-/// names case-insensitively, so all of them would in fact have worked spelt
-/// any way round. That was measured against the control rather than assumed:
-/// <c>redirectdrives</c> resolves, and so do <c>RedirectPosDevices</c> and
-/// <c>GatewayUserName</c>. The names are matched to the type library anyway,
-/// because a reader comparing this file against the IDL should find the same
-/// text on both sides.
-/// </para>
+/// Case does not matter: dispatch lookup is case-insensitive, and
+/// <c>redirectdrives</c>, <c>RedirectPosDevices</c> and <c>GatewayUserName</c>
+/// were all measured resolving against the real control. Letters do matter.
+/// <c>BitmapPersistence</c> sits beside <c>BitmapPeristence</c>, missing its
+/// second <c>s</c>; both are real and both still present, so they are two
+/// words rather than one word twice. An undeclared name such as
+/// <c>BitmapPersistance</c> is rejected with <c>DISP_E_UNKNOWNNAME</c>.
 ///
-/// <para>
-/// The difference that does bite is a difference of <em>letters</em>.
-/// <c>BitmapPersistence</c> sits beside <c>BitmapPeristence</c>, which is
-/// missing its second <c>s</c>; both are real, both are still present, and
-/// case-insensitivity does not help because they are two words rather than one
-/// word twice. A name nobody declared at all — <c>BitmapPersistance</c> — is
-/// rejected outright with <c>DISP_E_UNKNOWNNAME</c>, which is what keeps the
-/// two real ones from being confused with a typo.
-/// </para>
-///
-/// <para>
-/// <b>Nothing is written twice and nothing is guessed.</b> A setting the model
-/// leaves null after resolution is one with no default and nothing in the
-/// ancestry — a user name nobody set, a gateway nobody configured — and it
-/// produces no write at all, rather than a write of an empty string. The
-/// difference matters on a control that treats "" as an instruction.
-/// </para>
+/// A setting left null after resolution has no default and nothing in the
+/// ancestry, and produces no write rather than a write of an empty string.
+/// The control treats "" as an instruction.
 /// </summary>
 public static class RdpSettingsMapper
 {
@@ -235,23 +203,15 @@ public static class RdpSettingsMapper
     /// Names the account to sign in as (M4-04), preferring the sign-in the
     /// attempt was given over the one the document remembers (M4-10).
     ///
-    /// <para>
-    /// <b>Why the attempt wins.</b> The two are the same on an ordinary
-    /// connect, because the attempt was assembled from the document. They
-    /// differ in exactly one situation, and it is the situation this rule
-    /// exists for: somebody has been refused, been asked again, and typed a
-    /// different account. Taking the stored name there would send back the
-    /// account that was just turned down while appearing to have listened.
-    /// </para>
+    /// The two are the same on an ordinary connect. They differ when somebody
+    /// has been refused, asked again, and typed a different account, and
+    /// sending the stored name back there would retry what was just turned
+    /// down.
     ///
-    /// <para>
-    /// <b>The domain travels with the user name and not on its own.</b> When
-    /// the attempt names an account, the attempt's domain goes with it even
-    /// when that is empty — an empty domain is how a local account is
-    /// expressed, and falling back to the document's domain there would attach
-    /// a stored realm to a freshly typed local account and fail in a way that
-    /// looks like a bad password.
-    /// </para>
+    /// The domain travels with the user name and not on its own. An empty
+    /// domain is how a local account is expressed, so falling back to the
+    /// document's realm would attach it to a freshly typed local account and
+    /// fail in a way that looks like a bad password.
     /// </summary>
     private static void AddCredentials(
         List<RdpSettingWrite> plan,
@@ -322,33 +282,19 @@ public static class RdpSettingsMapper
     /// <summary>
     /// Hands the control a password, when the attempt was given one (M4-10).
     ///
-    /// <para>
-    /// <b>It comes from the request and never from the settings</b>, which is
-    /// the whole shape of the credential design: a document holds a user name,
-    /// a domain and a pointer to a profile, and never a secret, so there is no
-    /// path by which writing a connection file can write a password into it.
-    /// What is being written here was assembled for this attempt and is thrown
-    /// away with it.
-    /// </para>
+    /// It comes from the request and never from the settings: a document holds
+    /// a user name, a domain and a profile id, never a secret, so writing a
+    /// connection file cannot write a password into it.
     ///
-    /// <para>
-    /// <c>ClearTextPassword</c> is write-only, sits on the advanced settings at
-    /// DISPID 186, and has been there since the first RDP-branded control —
-    /// which is worth saying because the obvious place to look for it is
+    /// <c>ClearTextPassword</c> is write-only and sits on the advanced
+    /// settings at DISPID 186, present since the first RDP-branded control.
+    /// Worth saying because the obvious place to look is
     /// <c>IMsTscNonScriptable</c>, where it also exists and where reaching it
-    /// would mean transcribing a vtable by hand. It does not: the scriptable
-    /// copy is documented, reachable by name like every other setting here, and
-    /// carries the same value to the same place.
-    /// </para>
+    /// would mean transcribing a vtable by hand.
     ///
-    /// <para>
-    /// <b>Not material</b>, and this is the one entry where that deserves an
-    /// argument rather than a rule. A password that did not reach the control
-    /// produces a logon screen — visible, immediate, and fixable by the person
-    /// looking at it. Nothing is left less protected than was asked for, which
-    /// is what materiality means here; the session simply asks, which is what
-    /// it would have done with no password at all.
-    /// </para>
+    /// Not material. A password that did not reach the control produces a
+    /// logon screen, which is visible and fixable by the person looking at it,
+    /// and nothing is left less protected than was asked for.
     /// </summary>
     private static void AddPassword(List<RdpSettingWrite> plan, SessionRequest request)
     {
@@ -427,14 +373,11 @@ public static class RdpSettingsMapper
 
     /// <summary>
     /// Who the gateway is told is connecting (M4-11). Reached only when there
-    /// is a gateway at all, so nothing here is written for a direct session.
+    /// is a gateway, so nothing here is written for a direct session.
     ///
-    /// <para>
-    /// Every write is material, by the same rule as the gateway itself: a
-    /// gateway asked for one account and given another either refuses the
-    /// session — loud, and fine — or accepts it as somebody else, which is the
-    /// quiet outcome the flag exists for.
-    /// </para>
+    /// Every write is material: a gateway asked for one account and given
+    /// another either refuses the session, which is loud and fine, or accepts
+    /// it as somebody else, which is not.
     /// </summary>
     private static void AddGatewayCredentials(List<RdpSettingWrite> plan, ConnectionSettings settings)
     {
@@ -604,13 +547,9 @@ public static class RdpSettingsMapper
     /// <summary>
     /// How the desktop is allowed to look, and what the link is (M4-14).
     ///
-    /// <para>
-    /// Nothing here is material. Every one of these failing is visible in the
-    /// picture the moment it draws, which is precisely the kind of failure the
-    /// settings report stays quiet about — a warning shown every time an older
-    /// control declines a flag is one people learn to dismiss unread, and the
-    /// warning that mattered goes with it.
-    /// </para>
+    /// Nothing here is material. Any of these failing shows up in the picture
+    /// the moment it draws, and a warning raised every time an older control
+    /// declines a flag is one people learn to dismiss unread.
     /// </summary>
     private static void AddExperience(List<RdpSettingWrite> plan, ConnectionSettings settings)
     {
@@ -688,14 +627,11 @@ public static class RdpSettingsMapper
     /// <summary>
     /// What to do about a server that cannot prove who it is (M4-09).
     ///
-    /// <para>
-    /// <b>Material whenever it asks for more than nothing</b>, and the
-    /// clearest case in the whole table. A control that did not take "require
-    /// authentication" falls back to connecting to whatever answered, and a
-    /// session to an unauthenticated server is pixel-for-pixel a session to an
-    /// authenticated one — the difference only shows up after somebody has
-    /// typed a password into it.
-    /// </para>
+    /// Material whenever it asks for more than nothing. A control that did not
+    /// take "require authentication" connects to whatever answered, and a
+    /// session to an unauthenticated server looks pixel-for-pixel like a
+    /// session to an authenticated one until somebody types a password into
+    /// it.
     /// </summary>
     private static void AddSecurity(List<RdpSettingWrite> plan, ConnectionSettings settings)
     {

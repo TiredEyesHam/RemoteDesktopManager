@@ -162,12 +162,9 @@ public sealed class ConnectionSettings
     /// How often the client sends a keep-alive, in seconds; zero switches it
     /// off (M4-15).
     ///
-    /// <para>
-    /// Without one, a session whose server has vanished — powered off, kernel
-    /// panicked, network partitioned — sits there looking connected until
-    /// somebody types into it. With one, the drop is noticed within an
-    /// interval, which is what gives M4-08 something to reconnect from.
-    /// </para>
+    /// Without one, a session whose server has vanished sits there looking
+    /// connected until somebody types into it. With one, the drop is noticed
+    /// within an interval, which gives M4-08 something to reconnect from.
     /// </summary>
     public int? KeepAliveIntervalSeconds { get; set; }
 

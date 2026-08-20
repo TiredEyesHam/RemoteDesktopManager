@@ -12,15 +12,14 @@ public enum LogonOutcome
     Notice = 0,
 
     /// <summary>
-    /// The credentials were wrong. A different password may well work, so this
-    /// is the case a re-prompt exists for.
+    /// The credentials were wrong. A different password may work, so this is
+    /// the case a re-prompt exists for.
     /// </summary>
     WrongCredentials = 1,
 
     /// <summary>
-    /// The account cannot be used, whatever is typed at it — locked, disabled,
-    /// expired, out of hours, or barred from this machine. Offering to try
-    /// again here is offering to fail again.
+    /// The account cannot be used whatever is typed at it — locked, disabled,
+    /// expired, out of hours, or barred from this machine.
     /// </summary>
     AccountUnusable = 2,
 
@@ -34,33 +33,20 @@ public enum LogonOutcome
 /// <summary>
 /// Reads the number that comes with <c>OnLogonError</c> (M4-10).
 ///
-/// <para>
-/// <b>The question is not "what went wrong" but "is asking again any use".</b>
-/// Those are different questions and only the second one changes what Patchbay
-/// does. A wrong password is worth a re-prompt; a locked account is not, and
-/// offering one is how somebody types their correct password three more times
-/// into an account that will not open, wondering what they have forgotten.
-/// </para>
+/// The question is whether asking again is any use, not what went wrong. A
+/// wrong password is worth a re-prompt; a locked account is not, and offering
+/// one is how somebody types their correct password three more times into an
+/// account that will not open.
 ///
-/// <para>
-/// <b>Why this is safe to add when M4-07 refused to guess at codes.</b> M4-07's
-/// rule is that a plausible sentence about a code nobody has checked is worse
-/// than the number, and it stands — nothing here produces new wording. These
-/// are NTSTATUS values from <c>ntstatus.h</c>, where what each one means is not
-/// in doubt; what was in doubt is whether the control passes them through
-/// unchanged, and <c>STATUS_LOGON_FAILURE</c> arriving as -1073741715 is the
-/// observation that says it does. Everything not on the list is
-/// <see cref="LogonOutcome.Unknown"/> rather than assumed, and Unknown still
-/// permits a re-prompt: a person typing a password once more is not the
-/// lockout risk that an automatic retry loop is, which is why M4-08 is stricter
-/// than this is.
-/// </para>
+/// These are NTSTATUS values from <c>ntstatus.h</c>. What was in doubt is
+/// whether the control passes them through unchanged, and
+/// <c>STATUS_LOGON_FAILURE</c> arriving as -1073741715 says it does. Anything
+/// not listed is <see cref="LogonOutcome.Unknown"/> rather than assumed, and
+/// Unknown still permits a re-prompt: a person typing a password once more is
+/// not the lockout risk an automatic retry loop is, which is why M4-08 is
+/// stricter than this.
 ///
-/// <para>
-/// <b>Nothing here retries by itself.</b> Every outcome describes what to
-/// <em>offer</em>. The account-lockout rule that matters is M4-08's, and it
-/// keys on the same codes from the other direction.
-/// </para>
+/// Nothing here retries by itself. Every outcome describes what to offer.
 /// </summary>
 public static class LogonFailure
 {
@@ -68,7 +54,7 @@ public static class LogonFailure
     public const int StatusLogonFailure = -1073741715;
 
     /// <summary>
-    /// Access denied. The one non-NTSTATUS code in the set, and pinned by M4-06
+    /// Access denied. The one non-NTSTATUS code in the set, pinned by M4-06
     /// because it is what a refused account actually produces.
     /// </summary>
     public const int AccessDenied = -1;
@@ -100,14 +86,9 @@ public static class LogonFailure
     /// <summary>
     /// What <paramref name="logonError"/> means for trying again.
     ///
-    /// <para>
-    /// <c>STATUS_PASSWORD_EXPIRED</c> and <c>STATUS_PASSWORD_MUST_CHANGE</c>
-    /// are counted as unusable rather than as wrong credentials, which is the
-    /// judgement call in this method. The password on file may be perfectly
-    /// correct in both cases and a re-prompt would be asking for something the
-    /// person already gave; what is needed is a password <em>change</em>, which
-    /// happens at the far end and not in a Patchbay dialog.
-    /// </para>
+    /// Expired and must-change count as unusable rather than wrong, which is
+    /// the judgement call here. The password on file may be correct in both
+    /// cases; what is needed is a change, and that happens at the far end.
     /// </summary>
     public static LogonOutcome Classify(int logonError)
     {
@@ -135,9 +116,9 @@ public static class LogonFailure
 
     /// <summary>
     /// Whether it is worth offering to sign in again with something different.
-    /// True for a refusal that a different password could fix, and for a code
-    /// nobody has pinned down; false for an account that will not open however
-    /// many times it is asked, and false for winlogon talking to itself.
+    /// True for a refusal a different password could fix and for a code nobody
+    /// has pinned down; false for an account that will not open however many
+    /// times it is asked.
     /// </summary>
     public static bool IsWorthAskingAgain(int logonError)
         => Classify(logonError) is LogonOutcome.WrongCredentials or LogonOutcome.Unknown;

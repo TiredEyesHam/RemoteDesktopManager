@@ -9,17 +9,13 @@ namespace Patchbay.Rdp.Hosting;
 /// <summary>
 /// The RDP control as a WinForms control, so it can be given a window (M4-03).
 ///
-/// The ActiveX control is not a thing that can be drawn into a surface someone
-/// else owns. It wants a real HWND of its own, and everything downstream of
-/// that — the airspace rules, the docked-rather-than-modal prompts, the whole
-/// shape of the session UI — follows from that one fact. <see cref="AxHost"/>
-/// is the piece of WinForms that gives it one, and this is the smallest
-/// subclass that does the job.
+/// The ActiveX control cannot be drawn into a surface someone else owns. It
+/// wants a real HWND, and the airspace rules and docked-rather-than-modal
+/// prompts all follow from that. <see cref="AxHost"/> supplies one; this is
+/// the smallest subclass that does the job.
 ///
-/// The COM object does not exist until the handle does. That is why
-/// <see cref="EnsureCreated"/> exists and why <see cref="Client"/> is null
-/// before it: a control that has never been shown has nothing to configure,
-/// and pretending otherwise moves the failure to a stranger place.
+/// The COM object does not exist until the handle does, which is why
+/// <see cref="Client"/> is null before <see cref="EnsureCreated"/>.
 /// </summary>
 [DesignerCategory("")]
 public sealed class RdpSessionControl : AxHost
@@ -52,14 +48,13 @@ public sealed class RdpSessionControl : AxHost
     /// Whether the control scales its picture to the window it is given
     /// instead of drawing it pixel for pixel (M5-09).
     ///
-    /// Scaling is to <i>fill</i> the window, whatever shape the window is, so
-    /// this is only half of smart sizing: the other half is giving the control
-    /// a window of the session's own shape, which is
-    /// <see cref="RdpSessionPane"/>'s job. Setting this alone and letting the
-    /// control have the whole pane produces a stretched desktop.
+    /// Scaling fills the window whatever shape it is, so this is half of smart
+    /// sizing. The other half is giving the control a window of the session's
+    /// own shape, which is <see cref="RdpSessionPane"/>'s job; setting this
+    /// alone and handing over the whole pane produces a stretched desktop.
     ///
-    /// Kept here as well as on the control because the control does not exist
-    /// until the handle does, and the preference is chosen before that.
+    /// Kept here as well as on the control, because the preference is chosen
+    /// before the handle exists.
     /// </summary>
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool SmartSizing
@@ -73,11 +68,10 @@ public sealed class RdpSessionControl : AxHost
     }
 
     /// <summary>
-    /// The size of the remote desktop, as the control currently understands
-    /// it: what was asked for before a connection, and what was agreed after
-    /// one — the far end is entitled to give a different answer, and a session
-    /// laid out against the size that was requested rather than the size that
-    /// arrived is off by exactly that difference.
+    /// The size of the remote desktop as the control understands it: what was
+    /// asked for before a connection, what was agreed after one. The far end
+    /// may give a different answer, and laying a session out against the
+    /// requested size is off by exactly that difference.
     ///
     /// <see cref="PixelSize.Empty"/> before the control exists.
     /// </summary>
@@ -89,14 +83,10 @@ public sealed class RdpSessionControl : AxHost
     /// How the far end proved itself, as the control reports it (M4-09), or
     /// <see cref="SessionSecurity.Unknown"/> when it has not said.
     ///
-    /// <para>
-    /// Read at the moment it is wanted rather than cached, and only from a
-    /// connected session: <c>AuthenticationType</c> describes the connection
-    /// that exists, and asking a control that has not connected returns the
-    /// same zero as a connection with no authentication at all.
-    /// <see cref="RdpAuthenticationType"/> is where that ambiguity is dealt
-    /// with, and where the rest of M4-09's finding is written down.
-    /// </para>
+    /// Read when wanted rather than cached. <c>AuthenticationType</c>
+    /// describes the connection that exists, and a control that has not
+    /// connected returns the same zero as a connection with no authentication
+    /// at all; <see cref="RdpAuthenticationType"/> deals with that.
     /// </summary>
     public SessionSecurity NegotiatedSecurity
     {
@@ -126,13 +116,12 @@ public sealed class RdpSessionControl : AxHost
     public event EventHandler? ClientAttached;
 
     /// <summary>
-    /// Everything the control announces about its session (M4-06), already
-    /// named in <c>Core</c>'s vocabulary so that whoever handles it does not
-    /// have to know an ActiveX control is involved.
+    /// Everything the control announces about its session (M4-06), in
+    /// <c>Core</c>'s vocabulary so that handlers need not know an ActiveX
+    /// control is involved.
     ///
-    /// Raised on the thread the control lives on, from inside the control's
-    /// own call frame — see <see cref="RdpEventSink"/> for why handlers should
-    /// be short.
+    /// Raised on the control's own thread from inside its call frame. See
+    /// <see cref="RdpEventSink"/> for why handlers should be short.
     /// </summary>
     public event EventHandler<SessionSignalEventArgs>? SignalReceived;
 
@@ -175,22 +164,17 @@ public sealed class RdpSessionControl : AxHost
     }
 
     /// <summary>
-    /// Configures the control from a connection's resolved settings (M4-04),
-    /// and reports what this generation of control would not take.
+    /// Configures the control from a connection's resolved settings (M4-04)
+    /// and reports what this generation would not take.
     ///
-    /// <para>
-    /// Call before connecting. Most of these properties are read once when the
-    /// connection is made and ignored afterwards, so applying them to a live
-    /// session succeeds and changes nothing — which is the worst of both
-    /// answers.
-    /// </para>
+    /// Call before connecting. Most of these properties are read once as the
+    /// connection is made, so applying them to a live session succeeds and
+    /// changes nothing.
     ///
-    /// <para>
-    /// Smart sizing is not in the plan, deliberately. It stopped being a
-    /// document setting the moment a tab could toggle it (M5-09), and it is
-    /// <see cref="SmartSizing"/>'s from then on — a reconnect that quietly put
-    /// the saved value back would undo whatever somebody had just chosen.
-    /// </para>
+    /// Smart sizing is deliberately not in the plan; it belongs to
+    /// <see cref="SmartSizing"/> once a tab can toggle it (M5-09), and a
+    /// reconnect that put the saved value back would undo what somebody just
+    /// chose.
     /// </summary>
     /// <exception cref="RdpEngineException">The control could not be created.</exception>
     public RdpSettingsReport ApplySettings(SessionRequest request)
@@ -204,16 +188,12 @@ public sealed class RdpSessionControl : AxHost
 
     /// <summary>
     /// The describer to give <see cref="SessionSignalRouter"/> (M4-07), wired
-    /// to this control so that a disconnect is explained in Microsoft's own
-    /// words and Windows' own language.
+    /// to this control so a disconnect is explained in Microsoft's own words
+    /// and Windows' own language.
     ///
-    /// <para>
-    /// Reads the control late rather than capturing it: the reason and its
-    /// extended half are only meaningful at the moment the session ends, and
-    /// by then this control may have been replaced or gone away. A null client
-    /// simply means Patchbay answers with the code, which is what it would
-    /// have done anyway.
-    /// </para>
+    /// Reads the control late rather than capturing it: a reason is only
+    /// meaningful when the session ends, and by then this control may have gone
+    /// away. A null client means Patchbay answers with the code.
     /// </summary>
     public SessionReasons CreateReasons() => new(reason => Client?.DescribeDisconnect(reason));
 
@@ -234,11 +214,8 @@ public sealed class RdpSessionControl : AxHost
 
     /// <summary>
     /// Pushes <see cref="SmartSizing"/> at the control, if there is one yet.
-    ///
-    /// A control generation that has no such setting is not an error worth
-    /// stopping for — the picture is merely not scaled, which is visible, and
-    /// refusing to open the session over it would be a worse outcome than the
-    /// one being avoided.
+    /// A generation without the setting is not worth stopping for: the picture
+    /// is simply not scaled, which is visible.
     /// </summary>
     private void ApplySmartSizing()
     {
@@ -307,11 +284,10 @@ public sealed class RdpSessionControl : AxHost
     /// <summary>
     /// Hands one announcement to whoever is listening.
     ///
-    /// A handler that throws would otherwise unwind into native code, where
-    /// the exception becomes an HRESULT the control discards: the failure
-    /// disappears, and the session carries on in a state nobody chose. So it
-    /// is caught and thrown again from the message loop instead, where it
-    /// surfaces as an ordinary unhandled exception with its stack intact.
+    /// A handler that throws would unwind into native code, where the
+    /// exception becomes an HRESULT the control discards and the session
+    /// carries on in a state nobody chose. Caught and rethrown from the
+    /// message loop instead, where it surfaces normally with its stack intact.
     /// </summary>
     private void RaiseSignal(SessionSignalEventArgs announcement)
     {

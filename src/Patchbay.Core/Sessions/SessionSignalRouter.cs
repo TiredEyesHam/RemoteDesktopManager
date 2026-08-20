@@ -5,34 +5,27 @@ namespace Patchbay.Core.Sessions;
 /// <summary>
 /// Turns what the RDP control announces into what the session is (M4-06).
 ///
-/// The control does not report states, it reports events, and the two do not
-/// line up. Three things in particular have to be got right, and none of them
-/// is visible from the event names alone:
+/// The control reports events, not states, and the two do not line up. Three
+/// things have to be got right, none of them visible from the event names:
 ///
-/// <list type="number">
-///   <item><b>A disconnect is not news of a failure, or of a success.</b> The
-///   same <c>OnDisconnected</c> arrives when someone logs off, when the
-///   password was wrong, when the cable is out, and when Patchbay itself asked
-///   for the session to end. What separates them is the reason code and what
-///   the session was doing at the time.</item>
-///   <item><b>A logon error does not end anything.</b> The control keeps the
-///   connection up and puts a logon screen in front of the user. Treating it
-///   as a failure would tear down a tab that is still perfectly usable, and
-///   would make re-prompting for credentials (M4-10) impossible.</item>
-///   <item><b>The failure arrives before the disconnect that carries it.</b>
-///   <c>OnLogonError</c> or <c>OnFatalError</c> comes first, then a plain
-///   <c>OnDisconnected</c>. Whoever handles the disconnect on its own reports
-///   "Disconnected" to someone whose password was rejected.</item>
-/// </list>
+/// A disconnect is not news of a failure or of a success. The same
+/// <c>OnDisconnected</c> arrives when someone logs off, when the password was
+/// wrong, when the cable is out, and when Patchbay asked for the session to
+/// end; the reason code and what the session was doing separate them.
 ///
-/// So this remembers. It is a small amount of state, and it is the reason this
-/// type exists rather than a static method.
+/// A logon error ends nothing. The control keeps the connection and shows a
+/// logon screen, so treating it as a failure would tear down a usable tab and
+/// make the credential re-prompt in M4-10 impossible.
 ///
-/// <para>
-/// <b>Threading.</b> Belongs to the thread the control's events arrive on. The
-/// state machine underneath is thread-safe; this is not, and does not need to
-/// be.
-/// </para>
+/// The failure arrives before the disconnect that carries it.
+/// <c>OnLogonError</c> or <c>OnFatalError</c> comes first, then a plain
+/// <c>OnDisconnected</c>. Handling the disconnect alone reports
+/// "Disconnected" to someone whose password was rejected.
+///
+/// So this remembers, which is why it is a type rather than a static method.
+///
+/// Threading: belongs to the thread the control's events arrive on. The state
+/// machine underneath is thread-safe; this is not, and need not be.
 /// </summary>
 public sealed class SessionSignalRouter
 {
@@ -106,43 +99,27 @@ public sealed class SessionSignalRouter
     /// Whether the control is showing its own warning about the server's
     /// identity and waiting for an answer (M4-09).
     ///
-    /// <para>
-    /// Worth having as a fact about the session rather than only as a
-    /// sentence, because it is the one pause that is nobody's fault and has no
+    /// A fact rather than only a sentence, because it is the one pause with no
     /// timeout: everything else that stops progress either fails or comes
-    /// back, and this waits for as long as it takes somebody to notice a
-    /// dialog. Cleared when the warning goes and by the next attempt, like
-    /// everything else here that describes one connection.
-    /// </para>
+    /// back, and this waits as long as it takes somebody to notice a dialog.
+    /// Cleared when the warning goes and by the next attempt.
     /// </summary>
     public bool IsAwaitingTrustDecision { get; private set; }
 
     /// <summary>
-    /// Whether the far end has refused a sign-in that a different one might
-    /// fix, and the session is still open behind its own logon screen (M4-10).
+    /// Whether the far end refused a sign-in that a different one might fix,
+    /// and the session is still open behind its own logon screen (M4-10).
     ///
-    /// <para>
-    /// <b>This is the fact the re-prompt hangs off, and its timing is the
-    /// whole point.</b> A logon error ends nothing — the control keeps the
-    /// connection and puts a logon screen up — so the moment to ask is now,
-    /// while the tab is alive and the session can simply be given a different
-    /// password. Waiting for the disconnect and offering a retry afterwards is
-    /// the behaviour this item exists to avoid: by then the tab is gone and
-    /// what is on offer is a fresh connection wearing a retry button.
-    /// </para>
+    /// The timing is the point. A logon error ends nothing, so the moment to
+    /// ask is while the tab is alive and can be given a different password.
+    /// Waiting for the disconnect leaves nothing to re-prompt into.
     ///
-    /// <para>
-    /// False for a refusal no password can fix — a locked, disabled or expired
-    /// account (<see cref="LogonFailure"/>) — because offering there is how
-    /// somebody types their correct password three more times into a door that
-    /// will not open, and on a locked account every attempt extends the
-    /// lockout they are already serving.
-    /// </para>
+    /// False for a refusal no password can fix — locked, disabled or expired
+    /// (<see cref="LogonFailure"/>). On a locked account every further attempt
+    /// extends the lockout.
     ///
-    /// <para>
     /// Cleared by signing in, by the next attempt and by the end of the
-    /// session, like everything else here that describes one connection.
-    /// </para>
+    /// session.
     /// </summary>
     public bool IsAwaitingCredentials { get; private set; }
 
@@ -155,21 +132,17 @@ public sealed class SessionSignalRouter
 
     /// <summary>
     /// Whether a disconnect reason means the session simply ended. Only the
-    /// three the documentation calls "not an error code" qualify: a local
-    /// disconnect, the remote user logging off, and the server closing the
-    /// session. Everything else is something going wrong, and that is the
-    /// distinction M4-05's rule rests on — a drop is not a failure, but a
-    /// break is.
+    /// three the documentation calls "not an error code": a local disconnect,
+    /// the remote user logging off, and the server closing the session.
     /// </summary>
     public static bool IsOrdinaryDisconnect(int reason)
         => reason is DisconnectLocal or DisconnectRemoteByUser or DisconnectByServer;
 
     /// <summary>
     /// Whether a logon error code is winlogon narrating itself rather than a
-    /// problem. The trap is that this is not simply "negative": the
-    /// ARBITRATION_CODE_* values from -7 to -2 are notices, but -1 is access
-    /// denied and STATUS_LOGON_FAILURE is -1073741715. Reading the sign alone
-    /// swallows the two failures people actually hit.
+    /// problem. Not simply "negative": ARBITRATION_CODE_* runs -7 to -2, but
+    /// -1 is access denied and STATUS_LOGON_FAILURE is -1073741715. Reading
+    /// the sign alone swallows the two failures people actually hit.
     /// </summary>
     public static bool IsWinlogonNotice(int logonError)
         => logonError is (>= ArbitrationRefusedDialog and <= ArbitrationContinueLogon) or LogonWarning;

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using Microsoft.Win32;
+using Patchbay.App.Security;
 using Patchbay.App.Theme;
 using Patchbay.App.ViewModels;
 using Patchbay.Core.Sessions;
@@ -49,7 +50,14 @@ public partial class App : Application
                 SimulatedLatency = TimeSpan.FromMilliseconds(28),
             };
 
-        ShellViewModel shell = new(store, ChooseRdgFile, sessionHost);
+        // Real data protection here, unlike the view model's default: this is
+        // the one place that knows it is running on the signed-in account
+        // rather than in a test (M3-01).
+        ShellViewModel shell = new(
+            store,
+            ChooseRdgFile,
+            sessionHost,
+            DpapiSecretProtector.ForCurrentUser());
 
         MainWindow window = new(shell);
         MainWindow = window;

@@ -9,6 +9,7 @@ using Patchbay.Core.Editing;
 using Patchbay.Core.Import;
 using Patchbay.Core.Inheritance;
 using Patchbay.Core.Model;
+using Patchbay.Core.Security;
 using Patchbay.Core.Sessions;
 using Patchbay.Core.Serialization;
 using Patchbay.Core.Storage;
@@ -46,6 +47,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private readonly DispatcherTimer _searchTimer;
     private readonly DispatcherTimer _reconnectTimer;
     private readonly SessionWorkspace _workspace;
+    private readonly CredentialVault _credentials;
 
     private ConnectionDocument _document = new();
     private Action? _afterDiscard;
@@ -100,12 +102,18 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     public ShellViewModel(
         IConnectionStore store,
         Func<string?>? chooseImportFile = null,
-        IRemoteSessionHost? sessionHost = null)
+        IRemoteSessionHost? sessionHost = null,
+        ISecretProtector? secretProtector = null)
     {
         ArgumentNullException.ThrowIfNull(store);
 
         _store = store;
         _chooseImportFile = chooseImportFile;
+
+        // Defaults to the one that refuses on an account with no working data
+        // protection, so a test does not have to reach real DPAPI to build a
+        // shell (M3-01).
+        _credentials = new CredentialVault(secretProtector ?? UnavailableSecretProtector.Instance);
 
         // Delays on the fake, so the connecting state is something that can be
         // seen and got wrong rather than a frame nobody ever draws. The
@@ -464,7 +472,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             return;
         }
 
-        SessionRequest request = SessionRequest.For(SettingsResolver.Resolve(server));
+        EffectiveSettings effective = SettingsResolver.Resolve(server);
+        CredentialResolution sign = _credentials.Resolve(_document, effective.Values);
+
+        SessionRequest request = SessionRequest.For(effective) with
+        {
+            Credentials = sign.Credentials,
+        };
+
         IRemoteSession session = _workspace.Open(request);
 
         SessionTabViewModel tab =
@@ -481,6 +496,16 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         }
 
         tab.ForgetReconnect();
+
+        // A profile that has gone, or a password this Windows account cannot
+        // read (M3-01). Neither stops the connection: the session comes up and
+        // shows its own logon screen, which is what M3-06 will put a panel
+        // over. Saying so beforehand is the difference between that and a
+        // logon prompt nobody expected.
+        if (sign.Notice is { } notice)
+        {
+            Status = notice;
+        }
 
         await ConnectAsync(tab).ConfigureAwait(true);
     }

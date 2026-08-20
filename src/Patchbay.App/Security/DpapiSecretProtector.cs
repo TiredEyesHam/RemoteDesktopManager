@@ -8,51 +8,32 @@ namespace Patchbay.App.Security;
 /// Protects secrets with Windows data protection, scoped to the signed-in
 /// account (M3-02).
 ///
-/// <para>
-/// <b>Why <c>CurrentUser</c> and not <c>LocalMachine</c>.</b> A machine-scoped
-/// blob can be unprotected by <em>any</em> account on the machine, including a
-/// service account and including whoever comes to sit at it next. That is not
-/// a smaller amount of protection than user scope, it is a different thing
-/// altogether: it protects the file against being carried away and against
-/// nothing else. User scope costs one real thing, and it is worth stating
-/// plainly rather than discovering — a saved password does not travel. Copy
-/// the connection file to another machine, or sign in as another user on this
-/// one, and every saved password in it becomes unreadable. That is the
-/// bargain, it is deliberate, and <see cref="SecretUnprotectStatus.Unreadable"/>
-/// exists to explain it to whoever runs into it.
-/// </para>
+/// <c>CurrentUser</c> rather than <c>LocalMachine</c>. A machine-scoped blob
+/// can be unprotected by any account on the machine, so it protects the file
+/// against being carried away and against nothing else. User scope costs one
+/// real thing: a saved password does not travel. Copy the connection file to
+/// another machine, or sign in as another user here, and every saved password
+/// becomes unreadable. <see cref="SecretUnprotectStatus.Unreadable"/> exists
+/// to explain that to whoever hits it.
 ///
-/// <para>
-/// <b>The scope is chosen when protecting, and only then.</b> The scope
-/// argument to <c>Unprotect</c> looks like a check and is not one: a
-/// user-scoped blob opens perfectly well when <c>LocalMachine</c> is passed,
-/// and a machine-scoped one opens when <c>CurrentUser</c> is, because the
-/// scope travels inside the blob and Windows uses whichever key the blob names.
-/// Nothing here relies on that argument for anything. What stops another
-/// account reading a user-scoped blob is that it does not have the key —
-/// verified by protecting under one scope and opening it under the other,
-/// which succeeds and would be alarming if the flag meant what it looks like
-/// it means.
-/// </para>
+/// The scope is chosen when protecting and only then. The scope argument to
+/// <c>Unprotect</c> looks like a check and is not: a user-scoped blob opens
+/// when <c>LocalMachine</c> is passed and vice versa, because the scope
+/// travels inside the blob. What stops another account reading a user-scoped
+/// blob is not having the key. Verified by protecting under one scope and
+/// opening under the other.
 ///
-/// <para>
-/// <b>The entropy is not a secret.</b> It is a fixed string compiled into
-/// Patchbay, and anyone with the binary has it. It buys one thing: another
-/// program running as the same user cannot unprotect a Patchbay blob by
-/// handing it to DPAPI and seeing what falls out — it has to be written
-/// against Patchbay specifically. It is a speed bump, and calling it anything
-/// more would be dishonest. Nothing here defends against code running as the
-/// signed-in user, because DPAPI's whole contract is to serve that user.
-/// </para>
+/// The entropy is not a secret. It is a fixed string in the binary, and it
+/// buys one thing: another program running as the same user cannot unprotect a
+/// Patchbay blob without being written against Patchbay specifically. Nothing
+/// here defends against code running as the signed-in user, because that is
+/// who DPAPI serves.
 ///
-/// <para>
-/// Lives in the shell rather than in <c>Core</c> because <c>Core</c> is
-/// platform-neutral and <c>ArchitectureTests</c> enforces it. Everything about
-/// this that could be got wrong in an interesting way — the envelope, the
-/// version and scheme checks, the order of them — is in
-/// <see cref="SecretProtector"/> instead, where the tests can reach it. What
-/// is left here is two calls to Windows.
-/// </para>
+/// Lives in the shell rather than <c>Core</c>, which is platform-neutral and
+/// checked by <c>ArchitectureTests</c>. The parts worth getting wrong — the
+/// envelope, the version and scheme checks, their order — are in
+/// <see cref="SecretProtector"/> where tests can reach them. What is left here
+/// is two calls to Windows.
 /// </summary>
 public sealed class DpapiSecretProtector : SecretProtector
 {
@@ -80,15 +61,12 @@ public sealed class DpapiSecretProtector : SecretProtector
     /// Whether DPAPI actually works for this account, established by using it
     /// rather than by assuming it.
     ///
-    /// <para>
-    /// Being on Windows is not the same as having working data protection: an
+    /// Being on Windows is not the same as having working data protection. An
     /// account whose profile has not been loaded — a service account, a
-    /// scheduled task, some remote-execution contexts — has no master key, and
-    /// the failure arrives as a <see cref="CryptographicException"/> at the
-    /// moment someone tries to save a password. Finding that out with a
-    /// two-byte round trip on first use means the offer to save one is never
-    /// made in the first place.
-    /// </para>
+    /// scheduled task — has no master key, and the failure arrives as a
+    /// <see cref="CryptographicException"/> when someone tries to save a
+    /// password. A two-byte round trip on first use means the offer to save
+    /// one is never made.
     /// </summary>
     public override bool IsAvailable => _available ??= SelfTest();
 

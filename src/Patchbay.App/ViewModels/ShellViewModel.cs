@@ -544,11 +544,10 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// Turns smart sizing on or off for a tab, or for the one on screen when
     /// nothing is named (M5-09).
     ///
-    /// It has to be a button beside the session rather than one over it, and
-    /// it cannot be a keyboard shortcut either: WPF drawn over a hosted
-    /// session is not visible (M4-03), and a live session takes the keyboard
-    /// until it is told not to (M5-06, M5-07). mstsc puts the same toggle in
-    /// its system menu for the same reason.
+    /// A button beside the session rather than over it, and not a keyboard
+    /// shortcut: WPF drawn over a hosted session is invisible (M4-03) and a
+    /// live session takes the keyboard (M5-06, M5-07). mstsc puts the same
+    /// toggle in its system menu.
     ///
     /// The choice belongs to the tab and is not written back to the document.
     /// It is a way of looking at a session, not a change to the connection.

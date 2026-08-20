@@ -199,13 +199,11 @@ public sealed partial class SessionTabViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Moves the countdown on, and says whether it is time to connect (M4-08).
     ///
-    /// Driven from outside because a visible countdown has to be redrawn on the
-    /// thread that draws, so the clock belongs to the window. How much time has
-    /// passed is measured here rather than assumed to be the interval: a
-    /// dispatcher busy laying out a tree, or a machine that has been asleep,
-    /// delivers ticks late and irregularly, and a countdown that subtracted a
-    /// fixed second per tick would drift further from the truth the busier the
-    /// application got.
+    /// Driven from outside because a visible countdown is redrawn on the
+    /// thread that draws, so the clock belongs to the window. Elapsed time is
+    /// measured rather than assumed to be the interval: a busy dispatcher, or
+    /// a machine that has been asleep, delivers ticks late, and subtracting a
+    /// fixed second per tick would drift.
     /// </summary>
     public bool Tick()
     {

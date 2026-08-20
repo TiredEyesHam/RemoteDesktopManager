@@ -9,16 +9,13 @@ namespace Patchbay.App.Sessions;
 /// <summary>
 /// The place a session is shown, and the rule that keeps it showable (M4-03).
 ///
-/// There is one idea here: <b>swap, never stack</b>. A hosted session sits in
-/// its own child window and always draws in front of WPF content in the same
-/// window, so anything meant to appear "over" a session — a connecting
-/// message, a certificate warning, a credential re-prompt — cannot be layered
-/// on top of it. It has to take its place. This control owns that swap so no
-/// caller has to remember it, and so the two can never both be visible.
+/// One idea: swap, never stack. A hosted session sits in its own child window
+/// and always draws in front of WPF content in the same window, so anything
+/// meant to appear over a session cannot be layered on top of it — it has to
+/// take its place. This control owns the swap so no caller has to remember it.
 ///
-/// That constraint is why the backlog puts prompts in docked panels rather
-/// than modal dialogs (M3-06), and it is not a stylistic preference: a modal
-/// over a live session is a dialog nobody can see.
+/// That is why prompts are docked panels rather than modal dialogs (M3-06). A
+/// modal over a live session is a dialog nobody can see.
 ///
 /// Placement is checked rather than assumed. On load the surface asks
 /// <see cref="AirspaceRules"/> what its ancestors will do to it and publishes
@@ -127,11 +124,8 @@ public sealed class SessionSurface : UserControl, IDisposable
     /// right moment — which is a moment nobody can name, because WPF realises
     /// a tab some time after the view model creates it.
     ///
-    /// <para>
-    /// A session with no window is an ordinary thing and not an error: the
-    /// fake host (M4-01) has none, and the overlay is the whole of what those
-    /// sessions ever show.
-    /// </para>
+    /// A session with no window is ordinary rather than an error: the fake
+    /// host (M4-01) has none, and the overlay is all those sessions show.
     /// </summary>
     public static readonly DependencyProperty SessionProperty = DependencyProperty.Register(
         nameof(Session),

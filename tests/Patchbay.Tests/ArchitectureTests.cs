@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.Versioning;
 using Patchbay.Core;
+using Patchbay.Core.Diagnostics;
 
 namespace Patchbay.Tests;
 
@@ -62,8 +63,11 @@ public class ArchitectureTests
         // the likeliest way a password reaches a log file — through a line of
         // code nobody wrote. Adding a type with a Password on it and no
         // override fails here rather than in somebody's support ticket.
-        string[] telltale = ["Password", "Secret", "ProtectedPassword"];
-
+        //
+        // The names come from SecretNames because the redaction policy reads
+        // the same list (M3-08), and PrintsItself is the same question the
+        // policy asks before trusting a type's own ToString. Two copies would
+        // drift, and the copy that drifted would be the one nobody watched.
         List<string> offenders = [];
         int examined = 0;
 
@@ -71,26 +75,17 @@ public class ArchitectureTests
         {
             bool holdsOne = type
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-                .Any(p => p.PropertyType == typeof(string)
-                    && telltale.Any(n => p.Name.Contains(n, StringComparison.Ordinal)));
+                .Any(p => (p.PropertyType == typeof(string) || p.PropertyType == typeof(byte[]))
+                    && SecretNames.LooksLikeSecret(p.Name));
 
-            if (!holdsOne)
+            if (holdsOne)
             {
-                continue;
-            }
+                examined++;
 
-            examined++;
-
-            MethodInfo? declared = type.GetMethod(
-                nameof(ToString),
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly,
-                binder: null,
-                types: [],
-                modifiers: null);
-
-            if (declared is null)
-            {
-                offenders.Add(type.Name);
+                if (!SecretRedactingPolicy.PrintsItself(type))
+                {
+                    offenders.Add(type.Name);
+                }
             }
         }
 

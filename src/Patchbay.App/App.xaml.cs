@@ -1,12 +1,15 @@
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using Microsoft.Win32;
+using Patchbay.App.Diagnostics;
 using Patchbay.App.Security;
 using Patchbay.App.Theme;
 using Patchbay.App.ViewModels;
 using Patchbay.Core.Sessions;
 using Patchbay.Core.Storage;
 using Patchbay.Rdp.Hosting;
+using Serilog;
 
 namespace Patchbay.App;
 
@@ -26,6 +29,16 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // First, so that anything going wrong after this has somewhere to be
+        // written down. The logger is redacted by construction (M3-08) —
+        // PatchbayLog has no way to make one that is not.
+        AppLogging.Start();
+
+        Log.Information(
+            "Patchbay {Version} starting on {OSVersion}",
+            Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown",
+            Environment.OSVersion.VersionString);
+
         ThemeManager.Apply(AppTheme.System);
 
         // A path on the command line opens that document instead. Enough for
@@ -34,6 +47,8 @@ public partial class App : Application
         string path = e.Args.Length > 0 && !string.IsNullOrWhiteSpace(e.Args[0])
             ? e.Args[0]
             : DefaultDocumentPath;
+
+        Log.Information("Opening {DocumentPath}", path);
 
         FileConnectionStore store = new(path);
 
@@ -49,6 +64,10 @@ public partial class App : Application
                 DisconnectDelay = TimeSpan.FromMilliseconds(250),
                 SimulatedLatency = TimeSpan.FromMilliseconds(28),
             };
+
+        Log.Information(
+            "Session host is {Host}",
+            sessionHost is RdpRemoteSessionHost real ? real.Engine.Description : "a simulation");
 
         // Real data protection here, unlike the view model's default: this is
         // the one place that knows it is running on the signed-in account
@@ -67,6 +86,18 @@ public partial class App : Application
         // that appears only after the disk has answered feels broken on a slow
         // profile share, and this one may well be on one.
         await shell.InitialiseAsync();
+    }
+
+    /// <summary>
+    /// The file sink buffers, so a run that is not closed down loses its last
+    /// few lines — which are the ones somebody is usually looking for.
+    /// </summary>
+    protected override void OnExit(ExitEventArgs e)
+    {
+        Log.Information("Patchbay stopping");
+        Log.CloseAndFlush();
+
+        base.OnExit(e);
     }
 
     /// <summary>

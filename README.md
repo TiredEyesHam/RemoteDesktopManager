@@ -11,7 +11,7 @@ setting inheritance, tabbed sessions, and nothing else in the way.
 > hosted and tabbed, driven by the full settings surface, and it reconnects
 > itself when a link drops. It is not yet something to run day to day: there is
 > no logging, no installer and no release.
-> 57 of the 122 items planned for v1 are done — see
+> 59 of the 122 items planned for v1 are done — see
 > [`docs/BACKLOG.md`](docs/BACKLOG.md), where every box is ticked with a note on
 > what was actually verified.
 

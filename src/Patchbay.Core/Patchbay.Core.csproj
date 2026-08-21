@@ -10,4 +10,11 @@
     <RootNamespace>Patchbay.Core</RootNamespace>
   </PropertyGroup>
 
+  <!-- Serilog, and no sink. Core owns the redaction policy (M3-08) because
+       the tests can only see Core, and a security control nothing can test
+       is a comment. Where the log is written is Patchbay.App's problem. -->
+  <ItemGroup>
+    <PackageReference Include="Serilog" />
+  </ItemGroup>
+
 </Project>

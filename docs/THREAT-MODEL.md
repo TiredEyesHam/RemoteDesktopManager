@@ -74,6 +74,14 @@ Writing is atomic — a temporary file, then a replace — with five previous
 versions kept. **Backups inherit the same exposure as the document**, which is
 worth remembering before pointing the file at a synced folder.
 
+The log is the other file Patchbay leaves on disk, in
+`%LOCALAPPDATA%\Patchbay\logs`. Local rather than roaming, so it does not
+follow a profile share, and seven days of it are kept. Retention is a security
+setting rather than a disk one: once `M4-16` lands these files say which
+machines were connected to, as which account, and when, which is the same map
+of an estate the rest of this document is about. What they never hold is a
+password — see below.
+
 Protection failing is never a reason to store plaintext. `UnavailableSecretProtector`
 throws rather than falling back, because the fallback is invisible: nothing on
 screen changes, and the only difference is a cleartext password in a file that
@@ -110,9 +118,9 @@ through it as an ordinary value would appear in all four, and not through
 anybody's mistake: through adding one more row to a table where every other
 row is safe to print.
 
-So `RdpSettingWrite.IsSecret` sits on the entry and `ToString` redacts to a
-fixed-width mask — fixed width, so the length does not leak either. Every type
-that could carry a secret overrides `ToString`: `SessionCredentials`,
+So `RdpSettingWrite.IsSecret` sits on the entry and `ToString` redacts to
+`SecretNames.Mask` — fixed width, so the length does not leak either. Every
+type that could carry a secret overrides `ToString`: `SessionCredentials`,
 `CredentialProfile`, `CredentialPrompt`, `SecretUnprotectResult`.
 
 **A record's generated `ToString` prints every property.** That is the most
@@ -121,7 +129,43 @@ code nobody wrote. Any new type holding a secret must override it —
 `ArchitectureTests.Anything_holding_a_secret_overrides_ToString` fails if one
 does not, so this is a gate rather than a request.
 
-`M3-08` adds the Serilog policy for the same reason at the logging layer.
+The check behind that gate has to ask whether somebody *wrote* the
+`ToString`, not whether one exists. A record has one synthesised onto the type
+itself, so "the type declares a `ToString`" is true of every record in the
+codebase including the one printing `Password = hunter2`. The synthesised
+member carries `CompilerGeneratedAttribute` and a written one does not, and
+that is the only thing separating them. `SecretRedactingPolicy.PrintsItself`
+is where the question is asked, and both the gate and the redaction policy
+call it, so they cannot come to different answers.
+
+### Logging (`M0-07`, `M3-08`)
+
+A value reaches a sink three ways, and each needs its own answer:
+
+| Route | What stops a secret |
+|---|---|
+| `{Thing}` — rendered with `ToString` | the type's own override, held to by the gate above |
+| `{@Thing}` — destructured by reflection, never calls `ToString` | `SecretRedactingPolicy` |
+| `{Password}` — a bare value in a named hole | `SecretRedactingEnricher` |
+
+The policy hands Patchbay's own types back to their `ToString` where they have
+one, and otherwise destructures them with secret-named members masked. The
+enricher works on names alone and walks into structures, sequences and
+dictionaries, so a password under a `Password` key in a parsed file is masked
+too. Both read one list, `SecretNames.Telltale`, which the architecture gate
+also reads.
+
+`PatchbayLog.Create` is the only way to build a Patchbay logger, and it fits
+both before the caller can add a sink. A `RedactSecrets()` extension that
+callers were expected to remember would be the same code and a worse control:
+the failure would be a missing line, and the symptom would be a log that reads
+perfectly well and has a password in it.
+
+**A secret concatenated into the message itself cannot be redacted.**
+`logger.Information("password " + password)` makes the password part of the
+template text, and only holes are still values by the time an enricher sees
+the event. That one is a review question, and the fix if it ever bites is a
+Serilog-aware analyser in the build rather than anything at run time.
 
 ## Import parsing
 
@@ -179,7 +223,7 @@ badge that is always wrong is one people stop reading.
 | No document master password; DPAPI is the only scheme | `M3-07` |
 | Cleartext window at connect time is not minimised | `M3-03` |
 | No Credential Manager store | `M3-04` |
-| No log redaction policy | `M3-08` |
+| A secret concatenated into a message template is not redactable | review, not run time |
 | Clipboard handling not built | `M3-09` |
 | No signed release, so no way to verify what you ran | `M7` |
 

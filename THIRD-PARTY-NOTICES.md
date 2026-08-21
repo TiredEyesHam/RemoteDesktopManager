@@ -10,9 +10,13 @@ own terms, and this file is where those terms are acknowledged.
 |---|---|---|
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) 8.4.0 | MIT | Observable objects and commands in the WPF shell |
 | [.NET](https://github.com/dotnet/runtime) 10 | MIT | The runtime, WPF and Windows Forms |
+| [Serilog](https://github.com/serilog/serilog) 4.3.0 | Apache-2.0 | Logging, and the destructuring policy secrets are redacted by |
+| [Serilog.Sinks.File](https://github.com/serilog/serilog-sinks-file) 7.0.0 | Apache-2.0 | The rolling log file |
 
-Both are MIT, which the GPL permits redistributing: a permissive licence can be
-combined into a copyleft work, though not the other way round.
+MIT and Apache-2.0 are both permissive, and the GPL permits redistributing
+either: a permissive licence can be combined into a copyleft work, though not
+the other way round. Apache-2.0 is compatible with GPLv3 specifically and not
+with GPLv2, which is one of the reasons this repository is v3 or later.
 
 ## Used but not redistributed
 

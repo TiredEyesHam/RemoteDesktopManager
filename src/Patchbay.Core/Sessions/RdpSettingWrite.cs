@@ -1,3 +1,5 @@
+using Patchbay.Core.Diagnostics;
+
 namespace Patchbay.Core.Sessions;
 
 /// <summary>
@@ -94,8 +96,6 @@ public sealed record RdpSettingWrite
     /// <summary>Every name to try, best first.</summary>
     public IEnumerable<string> Candidates => [Name, .. Alternatives];
 
-    /// <summary>Fixed width, so the length does not leak either.</summary>
-    private const string Redacted = "••••••••";
-
-    public override string ToString() => $"{Target}.{Name} = {(IsSecret ? Redacted : Value)}";
+    public override string ToString() =>
+        $"{Target}.{Name} = {(IsSecret ? SecretNames.Mask : Value)}";
 }

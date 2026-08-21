@@ -437,4 +437,90 @@ public class FakeRemoteSessionTests
         Assert.Throws<InvalidOperationException>(
             () => ((FakeRemoteSession)session).SimulateRefusal());
     }
+
+    // ── A sign-in the far end will not take (M3-06) ──
+
+    [Fact]
+    public async Task A_refused_sign_in_can_leave_the_session_up()
+    {
+        // What the real control does: a logon error ends nothing, which is the
+        // only reason a docked prompt is possible at all.
+        FakeRemoteSession session = await Connected();
+
+        session.SimulateLogonPrompt(StatusLogonFailure);
+
+        Assert.Equal(SessionState.Connected, session.State);
+        Assert.True(session.IsAwaitingCredentials);
+        Assert.Equal(StatusLogonFailure, session.LastLogonError);
+    }
+
+    [Fact]
+    public async Task An_account_that_will_not_open_is_not_worth_asking_about()
+    {
+        FakeRemoteSession session = await Connected();
+
+        session.SimulateLogonPrompt(AccountLockedOut);
+
+        Assert.Equal(SessionState.Connected, session.State);
+        Assert.False(session.IsAwaitingCredentials);
+    }
+
+    [Fact]
+    public async Task Connecting_again_stops_the_asking()
+    {
+        FakeRemoteSession session = await Connected();
+        session.SimulateLogonPrompt(StatusLogonFailure);
+
+        await session.DisconnectAsync();
+        await session.ConnectAsync();
+
+        Assert.False(session.IsAwaitingCredentials);
+    }
+
+    [Fact]
+    public async Task A_new_sign_in_is_carried_by_the_next_attempt()
+    {
+        // The tab survives and the session does not, which is the whole shape
+        // of M4-10's other half.
+        FakeRemoteSession session = await Connected();
+        session.SimulateLogonPrompt(StatusLogonFailure);
+
+        await session.DisconnectAsync();
+        session.UseCredentials(new SessionCredentials { UserName = "svc-other", Password = "x" });
+        await session.ConnectAsync();
+
+        Assert.Equal("svc-other", session.Request.Credentials.UserName);
+        Assert.Equal(SessionState.Connected, session.State);
+    }
+
+    [Fact]
+    public async Task The_sign_in_cannot_be_changed_underneath_an_attempt()
+    {
+        // Applied to neither attempt reliably, so it is refused rather than
+        // raced. The delay is what makes the window observable at all.
+        (_, IRemoteSession session) = NewSession(
+            h => h.ConnectDelay = TimeSpan.FromMilliseconds(200));
+
+        Task connecting = session.ConnectAsync();
+
+        Assert.Equal(SessionState.Connecting, session.State);
+        Assert.Throws<InvalidOperationException>(
+            () => session.UseCredentials(SessionCredentials.None));
+
+        await connecting;
+    }
+
+    [Fact]
+    public async Task A_session_showing_a_logon_screen_is_still_connected()
+    {
+        // So the panel cannot offer Connect: there is nothing to connect.
+        // Answering it disconnects first, which is what the shell does.
+        FakeRemoteSession session = await Connected();
+        session.SimulateLogonPrompt(StatusLogonFailure);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => session.ConnectAsync());
+    }
+
+    private const int StatusLogonFailure = -1073741715;
+    private const int AccountLockedOut = -1073741260;
 }

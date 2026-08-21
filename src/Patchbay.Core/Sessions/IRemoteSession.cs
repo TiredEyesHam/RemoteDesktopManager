@@ -20,7 +20,10 @@ public interface IRemoteSession : IDisposable
     /// <summary>Identifies this session, as distinct from the node it came from.</summary>
     Guid Id { get; }
 
-    /// <summary>What this session was opened for. Fixed for its lifetime.</summary>
+    /// <summary>
+    /// What this session was opened for. Fixed except for the sign-in, which
+    /// <see cref="UseCredentials"/> may replace between attempts (M3-06).
+    /// </summary>
     SessionRequest Request { get; }
 
     SessionState State { get; }
@@ -49,6 +52,34 @@ public interface IRemoteSession : IDisposable
     /// rather than reported. See <see cref="SessionEnding.IsRefusal"/>.
     /// </summary>
     int? LastLogonError { get; }
+
+    /// <summary>
+    /// Whether the far end refused a sign-in that a different one might fix,
+    /// and the session is still up behind its own logon screen (M3-06, M4-10).
+    ///
+    /// The tab reads this to decide whether to dock a prompt. It is separate
+    /// from <see cref="LastLogonError"/> because a code is not a decision: a
+    /// locked account produces one and is not worth asking about, and the
+    /// judgement lives in <see cref="LogonFailure"/> rather than in whatever
+    /// happens to be reading the number.
+    /// </summary>
+    bool IsAwaitingCredentials { get; }
+
+    /// <summary>
+    /// Replaces the sign-in the next attempt will use (M3-06).
+    ///
+    /// The RDP control reads credentials once, as the connection is made, so
+    /// answering a prompt on a live session cannot hand them to the session
+    /// that is already up. What it can do is set them aside for the reconnect
+    /// that follows, which is why this is separate from
+    /// <see cref="ConnectAsync"/> and why the tab survives the exchange even
+    /// though the session does not.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The session is connecting or disconnecting. Changing the sign-in
+    /// underneath an attempt in flight would apply it to neither reliably.
+    /// </exception>
+    void UseCredentials(SessionCredentials credentials);
 
     /// <summary>
     /// Raised on every transition, including ones nobody asked for — a dropped

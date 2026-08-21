@@ -31,6 +31,7 @@ public sealed class SessionSurface : UserControl, IDisposable
     private readonly Grid _root = new();
     private readonly WindowsFormsHost _host = new();
     private readonly ContentPresenter _overlayPresenter = new();
+    private readonly ContentPresenter _dockPresenter = new();
 
     public SessionSurface()
     {
@@ -38,8 +39,25 @@ public sealed class SessionSurface : UserControl, IDisposable
             ContentPresenter.ContentProperty,
             new System.Windows.Data.Binding(nameof(Overlay)) { Source = this });
 
+        _dockPresenter.SetBinding(
+            ContentPresenter.ContentProperty,
+            new System.Windows.Data.Binding(nameof(DockedPanel)) { Source = this });
+
+        // Two rows. The session and the overlay share the first, because only
+        // one of them is ever visible; the dock has the second to itself and
+        // is sized to its content, so showing it makes the session smaller
+        // rather than covering part of it. Covering is the thing that does not
+        // work — see the class comment.
+        _root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        Grid.SetRow(_host, 0);
+        Grid.SetRow(_overlayPresenter, 0);
+        Grid.SetRow(_dockPresenter, 1);
+
         _root.Children.Add(_host);
         _root.Children.Add(_overlayPresenter);
+        _root.Children.Add(_dockPresenter);
         Content = _root;
 
         // Both children fill the same cell. Only ever one of them is visible,
@@ -94,6 +112,60 @@ public sealed class SessionSurface : UserControl, IDisposable
     {
         get => (DataTemplate?)GetValue(OverlayTemplateProperty);
         set => SetValue(OverlayTemplateProperty, value);
+    }
+
+    /// <summary>
+    /// WPF content docked below the session rather than in place of it
+    /// (M3-06).
+    ///
+    /// This is the other half of the airspace rule. An overlay replaces the
+    /// session because WPF cannot draw over it; a docked panel takes space
+    /// away from it instead, so the session stays visible and merely gets a
+    /// smaller rectangle. That is what a credential prompt wants: somebody
+    /// answering it is usually reading the logon screen behind it.
+    /// </summary>
+    public static readonly DependencyProperty DockedPanelProperty = DependencyProperty.Register(
+        nameof(DockedPanel),
+        typeof(object),
+        typeof(SessionSurface),
+        new PropertyMetadata(null));
+
+    /// <inheritdoc cref="DockedPanelProperty" />
+    public object? DockedPanel
+    {
+        get => GetValue(DockedPanelProperty);
+        set => SetValue(DockedPanelProperty, value);
+    }
+
+    /// <summary>How to draw <see cref="DockedPanel"/>, for the same reason as the overlay's.</summary>
+    public static readonly DependencyProperty DockedPanelTemplateProperty = DependencyProperty.Register(
+        nameof(DockedPanelTemplate),
+        typeof(DataTemplate),
+        typeof(SessionSurface),
+        new PropertyMetadata(null, OnDockedPanelTemplateChanged));
+
+    /// <inheritdoc cref="DockedPanelTemplateProperty" />
+    public DataTemplate? DockedPanelTemplate
+    {
+        get => (DataTemplate?)GetValue(DockedPanelTemplateProperty);
+        set => SetValue(DockedPanelTemplateProperty, value);
+    }
+
+    /// <summary>
+    /// Whether the docked panel is showing. Unlike the overlay this does not
+    /// hide the session, so both can be true at once and usually are.
+    /// </summary>
+    public static readonly DependencyProperty IsDockedPanelVisibleProperty = DependencyProperty.Register(
+        nameof(IsDockedPanelVisible),
+        typeof(bool),
+        typeof(SessionSurface),
+        new PropertyMetadata(false, OnVisibilityAffectingPropertyChanged));
+
+    /// <inheritdoc cref="IsDockedPanelVisibleProperty" />
+    public bool IsDockedPanelVisible
+    {
+        get => (bool)GetValue(IsDockedPanelVisibleProperty);
+        set => SetValue(IsDockedPanelVisibleProperty, value);
     }
 
     /// <summary>
@@ -203,6 +275,11 @@ public sealed class SessionSurface : UserControl, IDisposable
 
     private void OnLoaded(object sender, RoutedEventArgs e) => CheckPlacement();
 
+    private static void OnDockedPanelTemplateChanged(
+        DependencyObject d,
+        DependencyPropertyChangedEventArgs e)
+        => ((SessionSurface)d)._dockPresenter.ContentTemplate = e.NewValue as DataTemplate;
+
     private static void OnOverlayTemplateChanged(
         DependencyObject d,
         DependencyPropertyChangedEventArgs e)
@@ -242,5 +319,10 @@ public sealed class SessionSurface : UserControl, IDisposable
         // the session was using.
         _host.Visibility = showSession ? Visibility.Visible : Visibility.Collapsed;
         _overlayPresenter.Visibility = showSession ? Visibility.Collapsed : Visibility.Visible;
+
+        // Independent of the swap above: a prompt is worth docking under an
+        // overlay too, since a session that failed on a refused password shows
+        // the overlay and still wants asking.
+        _dockPresenter.Visibility = IsDockedPanelVisible ? Visibility.Visible : Visibility.Collapsed;
     }
 }

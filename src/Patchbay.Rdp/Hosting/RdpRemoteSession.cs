@@ -117,7 +117,7 @@ public sealed class RdpRemoteSession : IRemoteSession, IHostedSessionView
 
     public Guid Id { get; } = Guid.NewGuid();
 
-    public SessionRequest Request { get; }
+    public SessionRequest Request { get; private set; }
 
     public SessionState State => _lifecycle.State;
 
@@ -127,6 +127,23 @@ public sealed class RdpRemoteSession : IRemoteSession, IHostedSessionView
 
     /// <inheritdoc />
     public int? LastLogonError => _router.LastLogonError;
+
+    /// <inheritdoc />
+    public bool IsAwaitingCredentials => _router.IsAwaitingCredentials;
+
+    /// <inheritdoc />
+    public void UseCredentials(SessionCredentials credentials)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+
+        if (State is SessionState.Connecting or SessionState.Disconnecting)
+        {
+            throw new InvalidOperationException(
+                $"The sign-in cannot be changed while a session is {State}.");
+        }
+
+        Request = Request with { Credentials = credentials };
+    }
 
     /// <inheritdoc />
     public Control View => _pane;

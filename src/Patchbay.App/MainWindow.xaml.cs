@@ -78,6 +78,25 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Carries the typed password from the box to the prompt (M3-06).
+    ///
+    /// Code-behind because <see cref="PasswordBox.Password"/> is deliberately
+    /// not a dependency property: binding it would keep the plaintext in the
+    /// binding engine for as long as the panel is on screen, which is one more
+    /// copy than there needs to be (M3-03). Pushing it across on each
+    /// keystroke also keeps <c>CanSubmit</c> honest, so the button enables
+    /// itself as somebody types and disables again if they retype what was
+    /// just refused.
+    /// </summary>
+    private void OnPromptPasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (sender is PasswordBox { DataContext: CredentialPromptViewModel prompt } box)
+        {
+            prompt.Password = box.Password;
+        }
+    }
+
     private void OnConnectionsTabMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton is MouseButton.Left)

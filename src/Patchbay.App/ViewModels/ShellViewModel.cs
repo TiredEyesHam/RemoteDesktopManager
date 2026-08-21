@@ -713,6 +713,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     {
         SessionTabViewModel tab = new(session);
         tab.ReconnectScheduled += OnReconnectScheduled;
+        tab.CredentialsRequested += OnCredentialsRequested;
         tab.PropertyChanged += OnTabPropertyChanged;
 
         Tabs.Add(tab);
@@ -781,6 +782,113 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
                 await ConnectAsync(tab).ConfigureAwait(true);
             }
         }
+    }
+
+    /// <summary>
+    /// Docks a credential panel on a tab whose sign-in was refused (M3-06).
+    ///
+    /// The account is carried over and the password never is: pre-filling the
+    /// one that was just turned down invites somebody to press Connect again
+    /// without reading. Whether saving is offered comes from the vault rather
+    /// than from a guess, so the box does not appear on an account that cannot
+    /// keep a password (M3-02).
+    /// </summary>
+    private void OnCredentialsRequested(object? sender, EventArgs e)
+    {
+        if (sender is not SessionTabViewModel tab)
+        {
+            return;
+        }
+
+        tab.Ask(new CredentialPrompt(
+            tab.Endpoint,
+            CredentialPromptReason.Refused,
+            tab.Session.Request.Credentials,
+            _credentials.CanSavePasswords));
+    }
+
+    /// <summary>
+    /// Answers the docked panel: takes the sign-in, optionally keeps it, and
+    /// reconnects the same tab (M3-06, M4-10).
+    ///
+    /// The session goes and the tab does not, which is the whole shape of the
+    /// item. The RDP control reads credentials once as the connection is made,
+    /// so there is no way to hand them to the session already up; what there
+    /// is, is a reconnect into the tab somebody is already looking at, with
+    /// its history and its place in the strip intact.
+    /// </summary>
+    [RelayCommand]
+    private async Task SubmitCredentialsAsync(SessionTabViewModel? tab)
+    {
+        if (tab?.Prompt is not { CanSubmit: true } prompt)
+        {
+            return;
+        }
+
+        SessionCredentials answer = prompt.Prompt.ToCredentials();
+        bool save = prompt.SavePassword;
+
+        // Off the panel before anything can fail, so a refused save does not
+        // leave the typed password sitting in a control on screen.
+        tab.StopAsking();
+
+        if (save)
+        {
+            SaveToProfile(tab, answer);
+        }
+
+        tab.Session.UseCredentials(answer);
+
+        // Down before up. A session showing a logon screen is still connected,
+        // and ConnectAsync refuses one that is.
+        await tab.Session.DisconnectAsync().ConfigureAwait(true);
+        await ConnectAsync(tab).ConfigureAwait(true);
+    }
+
+    /// <summary>Dismisses the panel, leaving the session exactly as it was.</summary>
+    [RelayCommand]
+    private void DismissCredentials(SessionTabViewModel? tab) => tab?.StopAsking();
+
+    /// <summary>
+    /// Keeps a password against the profile the connection names, when it
+    /// names one.
+    ///
+    /// A connection set to prompt each time has nowhere to put it, and
+    /// inventing a profile on its behalf would add a saved sign-in nobody
+    /// asked for to a document somebody else may open. Creating profiles is
+    /// M3-10; this only fills one in.
+    /// </summary>
+    private void SaveToProfile(SessionTabViewModel tab, SessionCredentials answer)
+    {
+        if (_document.FindById(tab.Session.Request.NodeId) is not { } node)
+        {
+            return;
+        }
+
+        ConnectionSettings resolved = SettingsResolver.Resolve(node).Values;
+
+        if (resolved.CredentialProfileId is not { } id ||
+            _document.FindCredential(id) is not { } profile)
+        {
+            Status = "There is no saved sign-in on this connection to keep that password in.";
+            return;
+        }
+
+        try
+        {
+            _credentials.SavePassword(profile, answer.Password);
+            profile.UserName = answer.UserName;
+            profile.Domain = answer.Domain;
+        }
+        catch (SecretProtectionException ex)
+        {
+            // Said out loud rather than swallowed. The session still connects
+            // with what was typed; what did not happen is the keeping.
+            Status = $"The password could not be saved: {ex.Message}";
+            return;
+        }
+
+        _ = SaveAsync($"Saved the password for {profile.Label}");
     }
 
     private async Task ConnectAsync(SessionTabViewModel tab)

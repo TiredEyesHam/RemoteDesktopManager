@@ -65,6 +65,13 @@ public sealed partial class SessionTabViewModel : ObservableObject, IDisposable
     /// </summary>
     public event EventHandler? ReconnectScheduled;
 
+    /// <summary>
+    /// Raised when the far end has refused a sign-in and is still holding the
+    /// session open, so a panel is due (M3-06). Handled by the shell, which is
+    /// what knows how to save a password and how to reconnect.
+    /// </summary>
+    public event EventHandler? CredentialsRequested;
+
     public SessionTabViewModel(IRemoteSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -117,6 +124,53 @@ public sealed partial class SessionTabViewModel : ObservableObject, IDisposable
     public bool IsLive => State is SessionState.Connected;
 
     public bool HasFailed => State is SessionState.Failed;
+
+    /// <summary>
+    /// The docked credential panel, or null when nothing is being asked
+    /// (M3-06). Set by the shell, which is what knows how to save a password
+    /// and how to reconnect.
+    /// </summary>
+    public CredentialPromptViewModel? Prompt
+    {
+        get;
+        private set
+        {
+            field = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsPromptShowing));
+        }
+    }
+
+    /// <summary>
+    /// Whether the panel is docked. Independent of whether the session is
+    /// showing: a refusal on a live session leaves the logon screen up behind
+    /// the panel, and one that ended leaves the overlay up behind it.
+    /// </summary>
+    public bool IsPromptShowing => Prompt is not null;
+
+    /// <summary>
+    /// Whether the far end refused a sign-in and is still holding the session
+    /// open, which is the moment to ask (M4-10).
+    /// </summary>
+    public bool IsAwaitingCredentials => Session.IsAwaitingCredentials;
+
+    /// <summary>Docks a panel, replacing any that was already there.</summary>
+    public void Ask(CredentialPrompt prompt)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+        Prompt = new CredentialPromptViewModel(prompt);
+    }
+
+    /// <summary>
+    /// Takes the panel away, forgetting whatever was typed into it. Called
+    /// when it is answered, when it is dismissed, and whenever the session
+    /// moves on without it.
+    /// </summary>
+    public void StopAsking()
+    {
+        Prompt?.Forget();
+        Prompt = null;
+    }
 
     /// <summary>Whether connecting is worth offering. Retry and reconnect are the same button.</summary>
     public bool CanConnect =>
@@ -333,6 +387,19 @@ public sealed partial class SessionTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsLive));
         OnPropertyChanged(nameof(HasFailed));
         OnPropertyChanged(nameof(CanConnect));
+        OnPropertyChanged(nameof(IsAwaitingCredentials));
+
+        // A panel outlives a transition only while the question still stands.
+        // Connecting, connected and logged on all answer it; so does an
+        // ending, because there is nothing left to sign in to.
+        if (!Session.IsAwaitingCredentials)
+        {
+            StopAsking();
+        }
+        else if (Prompt is null)
+        {
+            CredentialsRequested?.Invoke(this, EventArgs.Empty);
+        }
 
         // The state is one of the five fields, and the other four are cleared
         // by the same transitions that change it.

@@ -39,7 +39,7 @@ public sealed class FakeRemoteSession : IRemoteSession
 
     public Guid Id { get; } = Guid.NewGuid();
 
-    public SessionRequest Request { get; }
+    public SessionRequest Request { get; private set; }
 
     public SessionState State => _lifecycle.State;
 
@@ -54,6 +54,23 @@ public sealed class FakeRemoteSession : IRemoteSession
 
     /// <inheritdoc />
     public int? LastLogonError { get; private set; }
+
+    /// <inheritdoc />
+    public bool IsAwaitingCredentials { get; private set; }
+
+    /// <inheritdoc />
+    public void UseCredentials(SessionCredentials credentials)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+
+        if (State is SessionState.Connecting or SessionState.Disconnecting)
+        {
+            throw new InvalidOperationException(
+                $"The sign-in cannot be changed while a session is {State}.");
+        }
+
+        Request = Request with { Credentials = credentials };
+    }
 
     /// <summary>How many times this session has been connected, successfully or not.</summary>
     public int ConnectAttempts { get; private set; }
@@ -73,6 +90,7 @@ public sealed class FakeRemoteSession : IRemoteSession
         // A fresh attempt carries none of the last one's baggage, exactly as
         // SessionSignalRouter forgets on OnConnecting.
         LastLogonError = null;
+        IsAwaitingCredentials = false;
 
         // Linked so that closing a tab mid-connect abandons the attempt, which
         // is the case the UI is most likely to get wrong.
@@ -194,9 +212,34 @@ public sealed class FakeRemoteSession : IRemoteSession
         }
 
         LastLogonError = logonError;
+        IsAwaitingCredentials = false;
 
         const string Message = "The user name or password is incorrect.";
         _lifecycle.MoveTo(SessionState.Failed, Message, new RemoteSessionException(Message));
+    }
+
+    /// <summary>
+    /// Refuses a sign-in the way the real control does: the session stays up,
+    /// nothing transitions, and a prompt becomes due if the code is one a
+    /// different password could fix (M3-06, M4-10).
+    ///
+    /// Distinct from <see cref="SimulateLogonFailure"/>, which ends the
+    /// session. Both happen in real life — the far end can refuse and keep
+    /// the connection, or refuse and drop it — and the docked prompt only
+    /// makes sense for the first.
+    /// </summary>
+    public void SimulateLogonPrompt(int logonError)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (State is not SessionState.Connected)
+        {
+            throw new InvalidOperationException(
+                $"Only a connected session can show a logon screen, and this one is {State}.");
+        }
+
+        LastLogonError = logonError;
+        IsAwaitingCredentials = LogonFailure.IsWorthAskingAgain(logonError);
     }
 
     /// <summary>

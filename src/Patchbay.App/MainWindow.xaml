@@ -708,16 +708,45 @@
                          visible; and a button rather than a shortcut, because
                          a live session takes the keyboard (M5-06, M5-07).
                          mstsc puts the same toggle in its system menu. -->
-                    <Button Grid.Column="1"
-                            Style="{StaticResource GhostButton}"
-                            Height="26"
-                            Margin="10,0,2,3"
-                            VerticalAlignment="Bottom"
-                            FontSize="{DynamicResource SizeSmall}"
-                            Content="{Binding ActiveTab.SizingLabel}"
-                            ToolTip="Scale the remote desktop to fit this tab, or show it pixel for pixel and scroll"
-                            Command="{Binding ToggleSmartSizingCommand}"
-                            Visibility="{Binding IsSessionVisible, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Bottom"
+                                Visibility="{Binding IsSessionVisible, Converter={x:Static conv:ValueConverters.BoolToVisibility}}">
+
+                        <!-- Copy the sign-in (M3-09). Beside the session for
+                             the same reason as the sizing toggle: a live
+                             session takes the keyboard, so Ctrl+C over one
+                             belongs to the far end. Shown only when Patchbay
+                             actually holds a sign-in for this session, which
+                             is not most of them. The password comes back off
+                             the clipboard after thirty seconds and the status
+                             bar counts it down. -->
+                        <Button Style="{StaticResource GhostButton}"
+                                Height="26"
+                                Margin="10,0,0,3"
+                                FontSize="{DynamicResource SizeSmall}"
+                                Content="Copy user"
+                                ToolTip="Copy the account this session signed in as"
+                                Command="{Binding CopyUserNameCommand}"
+                                Visibility="{Binding ActiveTab.CanCopyUserName, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+
+                        <Button Style="{StaticResource GhostButton}"
+                                Height="26"
+                                Margin="6,0,0,3"
+                                FontSize="{DynamicResource SizeSmall}"
+                                Content="Copy password"
+                                ToolTip="Put the password on the clipboard for thirty seconds, kept out of clipboard history"
+                                Command="{Binding CopyPasswordCommand}"
+                                Visibility="{Binding ActiveTab.CanCopyPassword, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+
+                        <Button Style="{StaticResource GhostButton}"
+                                Height="26"
+                                Margin="10,0,2,3"
+                                FontSize="{DynamicResource SizeSmall}"
+                                Content="{Binding ActiveTab.SizingLabel}"
+                                ToolTip="Scale the remote desktop to fit this tab, or show it pixel for pixel and scroll"
+                                Command="{Binding ToggleSmartSizingCommand}" />
+                    </StackPanel>
                 </Grid>
 
             <!-- Detail -->

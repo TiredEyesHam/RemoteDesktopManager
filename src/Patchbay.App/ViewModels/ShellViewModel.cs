@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows.Threading;
@@ -41,9 +42,13 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// never makes the wait wrong.
     /// </summary>
     private static readonly TimeSpan ReconnectTick = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan ClipboardTick = TimeSpan.FromSeconds(1);
 
     private readonly IConnectionStore _store;
     private readonly Func<string?>? _chooseImportFile;
+    private readonly SecretClipboard _clipboard;
+    private readonly Stopwatch _sinceClipboardTick = new();
+    private readonly DispatcherTimer _clipboardTimer;
     private readonly DispatcherTimer _searchTimer;
     private readonly DispatcherTimer _reconnectTimer;
     private readonly SessionWorkspace _workspace;
@@ -113,7 +118,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         IConnectionStore store,
         Func<string?>? chooseImportFile = null,
         IRemoteSessionHost? sessionHost = null,
-        ISecretProtector? secretProtector = null)
+        ISecretProtector? secretProtector = null,
+        ISystemClipboard? clipboard = null)
     {
         ArgumentNullException.ThrowIfNull(store);
 
@@ -124,6 +130,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         // protection, so a test does not have to reach real DPAPI to build a
         // shell (M3-01).
         _credentials = new CredentialVault(secretProtector ?? UnavailableSecretProtector.Instance);
+
+        // And the same for the clipboard, which is a WPF type (M3-09).
+        _clipboard = new SecretClipboard(clipboard ?? UnavailableClipboard.Instance);
 
         // Delays on the fake, so the connecting state is something that can be
         // seen and got wrong rather than a frame nobody ever draws. The
@@ -151,6 +160,12 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         // and on a laptop that is a battery cost somebody can measure.
         _reconnectTimer = new DispatcherTimer { Interval = ReconnectTick };
         _reconnectTimer.Tick += OnReconnectTick;
+
+        // Runs only while a password is on the clipboard, for the same reason
+        // as the reconnect one. A second is fine: the count is shown to the
+        // whole second and the clear is not a deadline anybody is racing.
+        _clipboardTimer = new DispatcherTimer { Interval = ClipboardTick };
+        _clipboardTimer.Tick += OnClipboardTick;
     }
 
     /// <summary>Raised when the palette changes, so the window can retheme its title bar.</summary>
@@ -708,6 +723,11 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _reconnectTimer.Stop();
+        _clipboardTimer.Stop();
+
+        // A password left on the clipboard by a process that has gone will
+        // never be cleared by anything (M3-09).
+        _clipboard.ClearNow();
 
         foreach (SessionTabViewModel tab in Tabs)
         {
@@ -833,6 +853,97 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         }
 
         Status = $"{tab.Title} · {tab.StateLabel}";
+    }
+
+    // ── The clipboard (M3-09) ───────────────────────────────────────────
+
+    /// <summary>
+    /// Copies the account this session is signed in as.
+    ///
+    /// <para>
+    /// A button beside the session rather than a keyboard shortcut, for the
+    /// same reason as the sizing toggle: a live session takes the keyboard
+    /// until M5-06 and M5-07 say otherwise, so Ctrl+C over a session belongs
+    /// to the far end.
+    /// </para>
+    /// </summary>
+    [RelayCommand]
+    private void CopyUserName()
+    {
+        if (ActiveTab?.Session.Request.Credentials is not { UserName.Length: > 0 } sign)
+        {
+            return;
+        }
+
+        _clipboard.CopyUserName(sign.Display);
+        AfterClipboard();
+    }
+
+    /// <summary>
+    /// Copies the password this session was given, for thirty seconds.
+    ///
+    /// <para>
+    /// Only from a session, and deliberately not from the credential manager.
+    /// Patchbay has already sent this password to this server, so putting it
+    /// on the clipboard to be pasted into that same server's own logon screen
+    /// reveals nothing it has not already done — which is the case for the
+    /// feature, since the reason to want it is that credential injection did
+    /// not reach the far end. A manager that hands back saved passwords is a
+    /// different claim, and M3-10 decided against it.
+    /// </para>
+    /// </summary>
+    [RelayCommand]
+    private void CopyPassword()
+    {
+        if (ActiveTab?.Session.Request.Credentials is not { HasPassword: true } sign)
+        {
+            return;
+        }
+
+        _clipboard.CopyPassword(sign.Password);
+        AfterClipboard();
+    }
+
+    /// <summary>
+    /// Says what happened and starts the clock if there is now something to
+    /// take back off the clipboard.
+    /// </summary>
+    private void AfterClipboard()
+    {
+        Status = _clipboard.Notice ?? Status;
+
+        if (!_clipboard.IsCountingDown)
+        {
+            _clipboardTimer.Stop();
+            return;
+        }
+
+        _sinceClipboardTick.Restart();
+
+        if (!_clipboardTimer.IsEnabled)
+        {
+            _clipboardTimer.Start();
+        }
+    }
+
+    /// <summary>
+    /// One second of the countdown. The remaining time is shown rather than
+    /// kept quiet: a password that is about to be taken off the clipboard is
+    /// something somebody needs to know before they walk away from it.
+    /// </summary>
+    private void OnClipboardTick(object? sender, EventArgs e)
+    {
+        TimeSpan elapsed = _sinceClipboardTick.Elapsed;
+        _sinceClipboardTick.Restart();
+
+        bool running = _clipboard.Tick(elapsed);
+
+        Status = _clipboard.Notice ?? Status;
+
+        if (!running)
+        {
+            _clipboardTimer.Stop();
+        }
     }
 
     /// <summary>

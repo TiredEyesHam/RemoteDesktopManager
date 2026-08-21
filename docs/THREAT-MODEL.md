@@ -223,11 +223,40 @@ until it passes.
 
 ## Clipboard
 
-Not built yet (`M3-09`). When it is: the clipboard is readable by every
-process on the desktop and is synced to other machines by Windows unless that
-is turned off. A password on it is a password published to the session, so it
-gets a 30-second auto-clear and must be excluded from clipboard history —
-which is a flag on the data object, not something the timer can do.
+The clipboard is readable by every process on the desktop, so a password on it
+is a password published. Patchbay will put one there — it is the only way past
+a logon screen that credential injection did not reach — and takes it off
+again after thirty seconds.
+
+**The countdown is the smaller half of this.** Since Windows 10 1809 the
+clipboard is not one slot. What is copied goes into clipboard history, which
+survives being cleared and stays readable from Win+V for the rest of the
+session, and it is uploaded to the cloud clipboard and pushed to the person's
+other machines if they have that turned on. A timer against the current slot
+is no defence against either. Both are opted out of by putting extra formats
+on the data object — `CanIncludeInClipboardHistory`,
+`CanUploadToCloudClipboard` and `ExcludeClipboardContentFromMonitorProcessing`
+— which is a property of the copy and not something the countdown can do.
+Verified against the real clipboard: all three formats are present on what
+comes back out of it.
+
+Clearing happens only if the clipboard has not changed since, which is checked
+with the Windows clipboard sequence number rather than by reading the contents
+back. Reading them back would mean holding the password to compare against,
+and it would be wrong anyway, since two copies of the same text are
+indistinguishable and only one of them is Patchbay's. A clear that fails
+because another process is holding the clipboard open is retried rather than
+given up on, and if it keeps failing it says so.
+
+A user name gets none of this. It is not a secret, it is in the connection
+document in the clear, and keeping it out of clipboard history would cost
+somebody a feature they use in exchange for nothing.
+
+Copying is offered from a session and not from the credential manager.
+Patchbay has already sent that password to that server, so putting it on the
+clipboard to paste into the same server's own logon screen reveals nothing it
+has not already done. A manager that hands back saved passwords is a different
+claim, and `M3-10` decided against it.
 
 Clipboard redirection into a session is a different question and is a
 per-connection setting. Turning it **off** is material and turning it on is
@@ -257,7 +286,6 @@ badge that is always wrong is one people stop reading.
 | Secret buffers are not locked out of the swap file | `VirtualLock`, not built |
 | No Credential Manager store | `M3-04` |
 | A secret concatenated into a message template is not redactable | review, not run time |
-| Clipboard handling not built | `M3-09` |
 | No signed release, so no way to verify what you ran | `M7` |
 
 None of these is a reason not to use Patchbay on a machine you already trust.

@@ -172,6 +172,22 @@ public sealed partial class SessionTabViewModel : ObservableObject, IDisposable
         Prompt = null;
     }
 
+    /// <summary>
+    /// Whether there is an account on this session worth putting on the
+    /// clipboard (M3-09). False for single sign-on and for a connection that
+    /// let the far end ask, where Patchbay never held one.
+    /// </summary>
+    public bool CanCopyUserName => Session.Request.Credentials.UserName.Length > 0;
+
+    /// <summary>
+    /// Whether there is a password to copy. False whenever nothing was
+    /// injected, which is most connections.
+    /// </summary>
+    public bool CanCopyPassword => Session.Request.Credentials.HasPassword;
+
+    /// <summary>Whether either button is worth showing at all.</summary>
+    public bool CanCopyAnything => CanCopyUserName || CanCopyPassword;
+
     /// <summary>Whether connecting is worth offering. Retry and reconnect are the same button.</summary>
     public bool CanConnect =>
         State is SessionState.Idle or SessionState.Disconnected or SessionState.Failed;
@@ -388,6 +404,12 @@ public sealed partial class SessionTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasFailed));
         OnPropertyChanged(nameof(CanConnect));
         OnPropertyChanged(nameof(IsAwaitingCredentials));
+
+        // The sign-in is replaced when a prompt is answered (M3-06), and the
+        // reconnect that follows comes through here.
+        OnPropertyChanged(nameof(CanCopyUserName));
+        OnPropertyChanged(nameof(CanCopyPassword));
+        OnPropertyChanged(nameof(CanCopyAnything));
 
         // A panel outlives a transition only while the question still stands.
         // Connecting, connected and logged on all answer it; so does an

@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Windows;
 using Microsoft.Win32;
 using Patchbay.App.Diagnostics;
+using Patchbay.App.Interop;
 using Patchbay.App.Security;
 using Patchbay.App.Theme;
 using Patchbay.App.ViewModels;
@@ -76,7 +77,8 @@ public partial class App : Application
             store,
             ChooseRdgFile,
             sessionHost,
-            DpapiSecretProtector.ForCurrentUser());
+            DpapiSecretProtector.ForCurrentUser(),
+            new WindowsClipboard());
 
         MainWindow window = new(shell);
         MainWindow = window;

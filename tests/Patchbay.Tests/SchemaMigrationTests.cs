@@ -67,12 +67,40 @@ public class SchemaMigrationTests
         """;
 
     [Fact]
-    public void No_migrations_ship_at_the_current_schema_version()
+    public void The_registered_chain_reaches_the_current_version_without_a_gap()
     {
-        // Schema 1 is the first, so there is nothing to upgrade from yet. This
-        // will change; the point is that the chain below is already tested.
-        Assert.Empty(SchemaMigrator.Registered);
-        Assert.Equal(1, ConnectionDocument.CurrentSchemaVersion);
+        // Migrate refuses a gap rather than stepping over it, which is the
+        // right refusal and a miserable one to find out about from somebody
+        // whose document will not open. One step per version, no more.
+        for (int version = 1; version < ConnectionDocument.CurrentSchemaVersion; version++)
+        {
+            Assert.Single(SchemaMigrator.Registered, step => step.FromVersion == version);
+        }
+
+        // And nothing stray: a step from a version that does not exist would
+        // never run, which looks like coverage and is not.
+        Assert.DoesNotContain(
+            SchemaMigrator.Registered,
+            step => step.FromVersion < 1
+                || step.FromVersion >= ConnectionDocument.CurrentSchemaVersion);
+    }
+
+    [Fact]
+    public void A_document_written_before_master_keys_existed_upgrades_and_has_none()
+    {
+        // The first real migration, and it rewrites nothing: a version 1
+        // document has no master key, which is exactly what a version 2
+        // document with no master key means. What the bump buys is that an
+        // older build refuses to open a file that does have one, rather than
+        // dropping the field and taking every password in it down with it.
+        const string Version1 = """{"schemaVersion":1,"root":{"name":"Connections","children":[]}}""";
+
+        (ConnectionDocument document, int? migratedFrom) =
+            ConnectionDocumentSerializer.DeserializeWithMigrationInfo(Version1);
+
+        Assert.Equal(1, migratedFrom);
+        Assert.Equal(2, document.SchemaVersion);
+        Assert.Null(document.MasterKey);
     }
 
     [Fact]
@@ -105,11 +133,12 @@ public class SchemaMigrationTests
     {
         RenameHostMigration migration = new(fromVersion: 0);
 
-        (string result, int? migratedFrom) = SchemaMigrator.Migrate(VersionZeroDocument, [migration]);
+        (string result, int? migratedFrom) =
+            SchemaMigrator.Migrate(VersionZeroDocument, [migration, new MasterKeyMigration()]);
 
         Assert.True(migration.WasApplied);
         Assert.Equal(0, migratedFrom);
-        Assert.Equal(1, SchemaMigrator.ReadVersion(result));
+        Assert.Equal(ConnectionDocument.CurrentSchemaVersion, SchemaMigrator.ReadVersion(result));
         Assert.Contains("hostName", result, StringComparison.Ordinal);
         Assert.DoesNotContain("address", result, StringComparison.Ordinal);
     }
@@ -120,10 +149,10 @@ public class SchemaMigrationTests
         (ConnectionDocument document, int? migratedFrom) =
             ConnectionDocumentSerializer.DeserializeWithMigrationInfo(
                 VersionZeroDocument,
-                [new RenameHostMigration(fromVersion: 0)]);
+                [new RenameHostMigration(fromVersion: 0), new MasterKeyMigration()]);
 
         Assert.Equal(0, migratedFrom);
-        Assert.Equal(1, document.SchemaVersion);
+        Assert.Equal(ConnectionDocument.CurrentSchemaVersion, document.SchemaVersion);
 
         ServerNode server = document.AllServers.Single();
         Assert.Equal("DC-01", server.Name);

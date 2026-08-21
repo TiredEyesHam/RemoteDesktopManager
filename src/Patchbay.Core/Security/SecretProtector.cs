@@ -28,6 +28,30 @@ public abstract class SecretProtector : ISecretProtector
     /// <inheritdoc />
     public virtual bool IsAvailable => true;
 
+    /// <summary>
+    /// What to say when <see cref="IsAvailable"/> is false and somebody tried
+    /// to save anyway.
+    ///
+    /// <para>
+    /// Overridable because the reason differs and the difference is the whole
+    /// message. A machine with no working data protection cannot be made to
+    /// have any, and the sentence is about giving up on saving passwords; a
+    /// document with a master password nobody has typed yet is one keystroke
+    /// from working, and telling that person their machine lacks a secret
+    /// store would send them somewhere useless (M3-07).
+    /// </para>
+    /// </summary>
+    protected virtual string UnavailableMessage =>
+        $"The '{Scheme}' secret store is not available on this machine, so there is "
+        + "nowhere safe to put this password.";
+
+    /// <summary>
+    /// What a read reports when <see cref="IsAvailable"/> is false. Paired
+    /// with <see cref="UnavailableMessage"/> so that the two cannot drift into
+    /// saying different things about the same state.
+    /// </summary>
+    protected virtual SecretUnprotectStatus UnavailableStatus => SecretUnprotectStatus.Unavailable;
+
     /// <inheritdoc />
     public string Protect(Secret secret)
     {
@@ -42,9 +66,7 @@ public abstract class SecretProtector : ISecretProtector
 
         if (!IsAvailable)
         {
-            throw new SecretProtectionException(
-                $"The '{Scheme}' secret store is not available on this machine, so there is "
-                + "nowhere safe to put this password.");
+            throw new SecretProtectionException(UnavailableMessage);
         }
 
         byte[]? payload = null;
@@ -76,7 +98,7 @@ public abstract class SecretProtector : ISecretProtector
 
         if (!IsAvailable)
         {
-            return SecretUnprotectResult.Failed(SecretUnprotectStatus.Unavailable);
+            return SecretUnprotectResult.Failed(UnavailableStatus);
         }
 
         return UnprotectCore(envelope.Payload.Span);

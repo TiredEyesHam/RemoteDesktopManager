@@ -88,6 +88,14 @@ public partial class App : Application
         // that appears only after the disk has answered feels broken on a slow
         // profile share, and this one may well be on one.
         await shell.InitialiseAsync();
+
+        // Worth a line, because it changes what every saved password does
+        // next and it is the first thing to ask about when one will not work
+        // (M3-07). No secret goes near this — the fact of a master password is
+        // not one, and the redaction policy would not let one through anyway.
+        Log.Information(
+            "Document opened {Locked}",
+            shell.IsDocumentLocked ? "locked by a master password" : "unlocked");
     }
 
     /// <summary>

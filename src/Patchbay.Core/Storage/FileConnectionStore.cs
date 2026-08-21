@@ -161,6 +161,23 @@ public sealed class FileConnectionStore : IConnectionStore, IDisposable
             string.Create(CultureInfo.InvariantCulture, $"{name}.{generation}.bak"));
     }
 
+    /// <inheritdoc />
+    public int OlderCopies => EnumerateBackups().Count();
+
+    /// <inheritdoc />
+    public int ForgetOlderCopies()
+    {
+        int gone = 0;
+
+        foreach (string backup in EnumerateBackups().ToList())
+        {
+            DeleteIfPresent(backup);
+            gone++;
+        }
+
+        return gone;
+    }
+
     public void Dispose() => _saveGate.Dispose();
 
     private string TempPath => FilePath + TempSuffix;

@@ -297,4 +297,59 @@ public sealed class FileConnectionStoreTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(
             () => store.BackupPath(FileConnectionStore.BackupCount + 1));
     }
+
+    // ── Older copies (M3-07) ────────────────────────────────────────────
+
+    [Fact]
+    public async Task Older_copies_are_counted_so_something_can_say_how_many()
+    {
+        FileConnectionStore store = CreateStore();
+
+        Assert.Equal(0, store.OlderCopies);
+
+        await store.SaveAsync(BuildDocument());
+
+        Assert.Equal(0, store.OlderCopies);
+
+        await store.SaveAsync(BuildDocument());
+        await store.SaveAsync(BuildDocument());
+
+        Assert.Equal(2, store.OlderCopies);
+    }
+
+    [Fact]
+    public async Task Older_copies_can_be_thrown_away_and_the_document_stays()
+    {
+        // The reason this exists. A backup carries whatever protection the
+        // document had when it was written, so turning on a master password
+        // (M3-07) leaves every previous version holding passwords under the
+        // old scheme. Deleting them is offered rather than done, because a
+        // backup is what recovers a document from a bad save.
+        FileConnectionStore store = CreateStore();
+
+        await store.SaveAsync(BuildDocument());
+        await store.SaveAsync(BuildDocument());
+        await store.SaveAsync(BuildDocument("changed"));
+
+        Assert.Equal(2, store.ForgetOlderCopies());
+        Assert.Equal(0, store.OlderCopies);
+        Assert.Empty(store.EnumerateBackups());
+
+        // The document itself is untouched, and still the newest version.
+        Assert.True(store.Exists);
+
+        LoadResult loaded = await store.LoadAsync();
+
+        Assert.Equal("changed", loaded.Document.AllServers.Single().Name);
+    }
+
+    [Fact]
+    public async Task Forgetting_older_copies_when_there_are_none_is_not_an_error()
+    {
+        FileConnectionStore store = CreateStore();
+        await store.SaveAsync(BuildDocument());
+
+        Assert.Equal(0, store.ForgetOlderCopies());
+        Assert.True(store.Exists);
+    }
 }

@@ -48,7 +48,8 @@ public sealed record SecretUnprotectResult
         Status is SecretUnprotectStatus.TooNew
             or SecretUnprotectStatus.WrongScheme
             or SecretUnprotectStatus.Unavailable
-            or SecretUnprotectStatus.Unreadable;
+            or SecretUnprotectStatus.Unreadable
+            or SecretUnprotectStatus.Locked;
 
     /// <summary>A sentence for the shell to show, or null when nothing needs saying.</summary>
     public string? Notice => Status switch
@@ -67,6 +68,8 @@ public sealed record SecretUnprotectResult
         SecretUnprotectStatus.Unreadable =>
             "This password was saved by a different Windows account or on a different machine, "
             + "so Patchbay cannot read it here. Enter it again to save a copy for this account.",
+        SecretUnprotectStatus.Locked =>
+            "This document is locked. Enter its master password to use the passwords saved in it.",
         _ => null,
     };
 

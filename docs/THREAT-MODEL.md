@@ -33,7 +33,7 @@ them:
 | A hostile file offered for import | yes | `.rdg` files circulate as "here are the servers" |
 | A hostile or compromised RDP server | partly | It sees what the session sends it, which is the point |
 | Code running as the signed-in user | **no** | Out of reach, see above |
-| A user with local administrator rights | **no** | Can read another user's DPAPI store |
+| A user with local administrator rights | with a master password | Without one they can read another user's DPAPI store |
 
 ## At rest
 
@@ -51,9 +51,14 @@ base64, it names which store can open it so a document can hold blobs from
 more than one, and it lets a file written by a later version be refused
 politely rather than reported as corrupt.
 
-The only scheme today is `dpapi`, which is Windows data protection scoped to
-`CurrentUser` with a fixed application entropy. The consequences are worth
-being blunt about:
+There are two schemes. `dpapi` is Windows data protection scoped to
+`CurrentUser` with a fixed application entropy, and it is what a document uses
+until somebody says otherwise. `master` is a key derived from a password the
+person chooses, and it is what a document uses once they have (`M3-07`).
+
+### `dpapi`
+
+The consequences are worth being blunt about:
 
 - A blob does not travel. Another machine, or another Windows account on the
   same machine, cannot read it. That is deliberate, and
@@ -66,13 +71,82 @@ being blunt about:
 - A local administrator can read another account's DPAPI store. User scope is
   not a boundary against them.
 
-A document master password (`M3-07`) is the answer to the last two, and is not
-built. Until it is, the honest summary is that saved passwords are protected
-against the file moving and against nothing else.
+The honest summary is that a `dpapi` blob is protected against the file moving
+and against nothing else.
+
+### `master`
+
+A master password is the answer to the last two, and it is optional because
+its costs are real ones.
+
+The scheme has **two keys**. The master password derives a key-encryption key
+with PBKDF2-HMAC-SHA256 at 600,000 iterations over a 16-byte random salt; that
+key wraps a separate 32-byte random document key with AES-256-GCM; and the
+document key is what each saved password is encrypted with, again AES-256-GCM,
+under a fresh 96-bit nonce every time. The wrapped key, the salt, the
+iteration count and the name of the derivation function live in the document as
+`masterKey`. None of them is secret and all of them are meant to be readable.
+
+The indirection is not ceremony. It means one derivation per unlock rather than
+one per password; it means changing the master password rewraps thirty-two
+bytes rather than re-encrypting every secret, so a crash cannot leave a
+document with half its passwords under each; and it means a wrong password is
+caught once, by the GCM tag on the wrapped key, rather than by trying to
+decrypt a password and seeing what comes out. The wrapped key is its own
+verifier — a separate check value would be one more thing to get wrong and one
+more thing to test a guess against.
+
+PBKDF2 rather than Argon2id, which is the better function and is not in the
+framework. Argon2id would mean a third-party cryptographic implementation in
+the path that protects every password Patchbay saves. The derivation function
+is **named in the record**, so that is a decision to revisit rather than one to
+live with: a document written today says `pbkdf2-sha256`, and a build that
+grows an Argon2id option will still open it.
+
+What it buys, and what it costs:
+
+- A local administrator cannot read it, and neither can code running as the
+  signed-in account, because the key is not held by the machine.
+- **The document travels.** Anyone who knows the password can read it on any
+  machine. That is the point and it is also the liability: a `dpapi` document
+  that leaks is useless to whoever has it, and a `master` document that leaks
+  is one password away.
+- **There is no recovery.** A forgotten master password is a document of
+  unreadable passwords. The connections themselves still work; they just ask.
+- The iteration count is what stands between a leaked document and a
+  dictionary. 600,000 is OWASP's figure for this function and costs about
+  90 ms per unlock on the machine this was written on.
+
+A document with a master password is **schema version 2**, and the bump matters
+more than any field added so far. An unrecognised property is dropped on
+deserialisation and gone on the next save; for a setting that loses a setting,
+and for `masterKey` it loses the only copy of the key wrapping every password
+in the file. So a build that has never heard of it refuses to open the document
+rather than quietly discarding it.
+
+A locked document is a working document. The tree, the editor, the import and
+every connection that does not use a saved password all behave normally; the
+saved passwords report `Locked`, which says what to do about it, and nothing
+overwrites them. A locked document also **refuses to save a new password**
+rather than falling back to `dpapi` — a silent downgrade of the protection
+somebody deliberately turned on would look exactly like success.
+
+### Copies of the document
 
 Writing is atomic — a temporary file, then a replace — with five previous
-versions kept. **Backups inherit the same exposure as the document**, which is
-worth remembering before pointing the file at a synced folder.
+versions kept. **Backups inherit the protection the document had when they were
+written, not the protection it has now.**
+
+That is not a general caution; it was measured. Turning on a master password
+re-protects the document and leaves every previous version beside it holding
+`pb1:dpapi:` blobs that still open under Windows data protection alone. The
+master password panel says so, counts them, and offers to delete them — offers
+rather than does, because a backup is what recovers a document from a bad save
+and the moment just after changing how it is protected is a poor one to have
+none.
+
+The same applies to any copy Patchbay did not make. Pointing the document at a
+synced folder means the sync service holds every version it ever saw.
 
 The log is the other file Patchbay leaves on disk, in
 `%LOCALAPPDATA%\Patchbay\logs`. Local rather than roaming, so it does not
@@ -281,7 +355,10 @@ badge that is always wrong is one people stop reading.
 
 | Gap | Item |
 |---|---|
-| No document master password; DPAPI is the only scheme | `M3-07` |
+| A forgotten master password cannot be recovered | by design; no escrow, no hint |
+| Argon2id is not offered, only PBKDF2 | named in the record, so addable |
+| A blob can be moved between profiles in the file by hand | not bound to the profile id |
+| Copies made outside Patchbay keep the protection they were made with | nothing can reach them |
 | A password handed to the RDP control must be a `string` | not fixable at this layer |
 | Secret buffers are not locked out of the swap file | `VirtualLock`, not built |
 | No Credential Manager store | `M3-04` |

@@ -52,6 +52,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private readonly DispatcherTimer _searchTimer;
     private readonly DispatcherTimer _reconnectTimer;
     private readonly SessionWorkspace _workspace;
+    private readonly DocumentProtection _protection;
     private readonly CredentialVault _credentials;
 
     private ConnectionDocument _document = new();
@@ -75,6 +76,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsManagingCredentials))]
     private CredentialManagerViewModel? _credentialManager;
+
+    /// <summary>
+    /// The master password panel, or null when it is not open (M3-07). Shares
+    /// the slot with the editor and the sign-in manager for the same reason
+    /// they share it with each other.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsManagingSecurity))]
+    private DocumentSecurityViewModel? _documentSecurity;
 
     [ObservableProperty]
     private bool _isDeleteRequested;
@@ -126,10 +136,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _store = store;
         _chooseImportFile = chooseImportFile;
 
-        // Defaults to the one that refuses on an account with no working data
-        // protection, so a test does not have to reach real DPAPI to build a
-        // shell (M3-01).
-        _credentials = new CredentialVault(secretProtector ?? UnavailableSecretProtector.Instance);
+        // The document's protection, whichever it is using (M3-07). Everything
+        // downstream holds this rather than a store, so a document behind a
+        // master password and one behind DPAPI are the same thing to it.
+        //
+        // Defaults to the protector that refuses on an account with no working
+        // data protection, so a test does not have to reach real DPAPI to
+        // build a shell (M3-01).
+        _protection = new DocumentProtection(secretProtector);
+        _credentials = new CredentialVault(_protection);
 
         // And the same for the clipboard, which is a WPF type (M3-09).
         _clipboard = new SecretClipboard(clipboard ?? UnavailableClipboard.Instance);
@@ -208,16 +223,53 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     public bool IsManagingCredentials => CredentialManager is not null;
 
+    public bool IsManagingSecurity => DocumentSecurity is not null;
+
+    /// <summary>Whether the document is behind a master password nobody has typed (M3-07).</summary>
+    public bool IsDocumentLocked => _protection.NeedsUnlocking;
+
     /// <summary>Opens the saved sign-in manager, closing any editor first.</summary>
     [RelayCommand]
     private void ManageCredentials()
     {
         Editor = null;
+        DocumentSecurity = null;
         CredentialManager = new CredentialManagerViewModel(_document, _credentials, MarkCredentialsChanged);
     }
 
     [RelayCommand]
     private void CloseCredentials() => CredentialManager = null;
+
+    /// <summary>Opens the master password panel (M3-07).</summary>
+    [RelayCommand]
+    private void ManageSecurity()
+    {
+        Editor = null;
+        CredentialManager = null;
+        DocumentSecurity =
+            new DocumentSecurityViewModel(_protection, _document, _store, MarkSecurityChanged);
+    }
+
+    [RelayCommand]
+    private void CloseSecurity() => DocumentSecurity = null;
+
+    /// <summary>
+    /// Writes the document after the master password changed, and refreshes
+    /// what depends on it.
+    ///
+    /// <para>
+    /// This save matters more than the others. The wrapped key lives in the
+    /// document, so a master password that is set but not written is one that
+    /// did not happen — and the saved passwords beside it have already been
+    /// re-encrypted with a key the file would no longer name.
+    /// </para>
+    /// </summary>
+    private void MarkSecurityChanged()
+    {
+        _ = SaveAsync("Document security updated");
+
+        OnPropertyChanged(nameof(IsDocumentLocked));
+    }
 
     /// <summary>
     /// Writes the document after a change to the saved sign-ins, and refreshes
@@ -289,7 +341,23 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             Status = "Could not open the connection file";
         }
 
+        // Whatever came back, including the empty document put up after a
+        // failed load: the protection follows the document, and a stale key
+        // from a previous one must not survive into it (M3-07).
+        _protection.Open(_document);
+
         BuildTree();
+
+        if (_protection.NeedsUnlocking)
+        {
+            // Opened on arrival rather than left for somebody to find. The
+            // tree, the editor and every connection that does not use a saved
+            // password work perfectly well locked, so this is not a barrier —
+            // but a saved password failing with no explanation would be.
+            OnPropertyChanged(nameof(IsDocumentLocked));
+            ManageSecurity();
+            Status = $"Opened {FileName} · locked";
+        }
     }
 
     [RelayCommand]
@@ -738,6 +806,9 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         Tabs.Clear();
         _workspace.Dispose();
+
+        // The document key goes with the process that held it (M3-07).
+        _protection.Dispose();
 
         ActiveTab = null;
         OnPropertyChanged(nameof(HasTabs));

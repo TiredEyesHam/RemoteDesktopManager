@@ -32,4 +32,29 @@ public interface IConnectionStore
     /// during the call.
     /// </summary>
     Task SaveAsync(ConnectionDocument document, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// How many previous versions of the document are sitting beside it.
+    ///
+    /// <para>
+    /// Worth asking about because they inherit the protection the document had
+    /// when they were written, not the protection it has now. Turning on a
+    /// master password (M3-07) leaves every one of them holding passwords
+    /// under the old scheme, and somebody who has just protected their
+    /// document is entitled to be told that.
+    /// </para>
+    /// </summary>
+    int OlderCopies { get; }
+
+    /// <summary>
+    /// Deletes the previous versions. Returns how many went.
+    ///
+    /// <para>
+    /// Destructive and deliberately not automatic. Backups are what recovers a
+    /// document from a bad save, and the moment just after changing how it is
+    /// protected is a poor one to be without them — so this is a thing to
+    /// choose, not a thing that happens.
+    /// </para>
+    /// </summary>
+    int ForgetOlderCopies();
 }

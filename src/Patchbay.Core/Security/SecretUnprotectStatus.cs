@@ -47,4 +47,15 @@ public enum SecretUnprotectStatus
     /// same thing to the person — this password has to be entered again.
     /// </summary>
     Unreadable = 5,
+
+    /// <summary>
+    /// The document has a master password and nobody has typed it yet (M3-07).
+    ///
+    /// Deliberately not <see cref="Unavailable"/>, which it superficially
+    /// resembles. Unavailable means there is nothing to be done on this
+    /// machine; this means there is exactly one thing to be done and it takes
+    /// a moment. Telling somebody their data protection is broken when the
+    /// document is merely locked sends them somewhere useless.
+    /// </summary>
+    Locked = 6,
 }

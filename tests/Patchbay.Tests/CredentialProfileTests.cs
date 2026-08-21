@@ -393,7 +393,7 @@ public class CredentialProfileTests
         // same thing, so an older file is not a migration.
         const string Json = """{"schemaVersion":1,"root":{"name":"Connections","children":[]}}""";
 
-        Assert.Empty(ConnectionDocumentSerializer.Deserialize(Json, []).Credentials);
+        Assert.Empty(ConnectionDocumentSerializer.Deserialize(Json).Credentials);
     }
 
     private static CredentialVault Vault() => new(new ReversingProtector());

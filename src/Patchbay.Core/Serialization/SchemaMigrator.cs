@@ -11,12 +11,14 @@ namespace Patchbay.Core.Serialization;
 public static class SchemaMigrator
 {
     /// <summary>
-    /// The migrations shipped with this build, in order. Empty at schema
-    /// version 1 — there is nothing older to upgrade from yet. The chain is
-    /// exercised by tests regardless, so the first real migration is a matter
-    /// of adding one class rather than building the machinery under pressure.
+    /// The migrations shipped with this build, in order. One per version step,
+    /// and the chain must have no gaps — <see cref="Migrate"/> refuses rather
+    /// than skipping a missing one.
     /// </summary>
-    public static IReadOnlyList<ISchemaMigration> Registered { get; } = [];
+    public static IReadOnlyList<ISchemaMigration> Registered { get; } =
+    [
+        new MasterKeyMigration(),
+    ];
 
     /// <summary>Reads the schema version from raw JSON without deserialising it.</summary>
     /// <exception cref="ConnectionDocumentException">The JSON is not an object, or is malformed.</exception>

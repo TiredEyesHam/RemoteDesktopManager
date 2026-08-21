@@ -503,6 +503,11 @@
                         ToolTip="Saved sign-ins that connections can share"
                         Command="{Binding ManageCredentialsCommand}" />
                 <Button Style="{StaticResource GhostButton}"
+                        Content="Security"
+                        Margin="4,0,0,0"
+                        ToolTip="The master password protecting this document"
+                        Command="{Binding ManageSecurityCommand}" />
+                <Button Style="{StaticResource GhostButton}"
                         Content="Import .rdg"
                         Margin="4,0,0,0"
                         ToolTip="Import a Remote Desktop Connection Manager file"
@@ -1009,6 +1014,112 @@
                                 Content="Close"
                                 Margin="8,0,0,0"
                                 Command="{Binding DataContext.CloseCredentialsCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Master password (M3-07). One panel for three states: a
+                 document with none offers to take one, a locked one asks for
+                 it, an open one offers to change or remove it. Shares the
+                 editor's column with the sign-in manager, for the same reason
+                 they share it with the editor. -->
+            <Border Grid.Column="3"
+                    Style="{StaticResource Panel}"
+                    Width="404"
+                    Margin="12,0,18,0"
+                    Visibility="{Binding IsManagingSecurity, Converter={x:Static conv:ValueConverters.BoolToVisibility}}">
+                <Grid DataContext="{Binding DocumentSecurity}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Margin="22,20,22,12">
+                        <TextBlock Style="{StaticResource Subhead}" Text="Document security" />
+                        <TextBlock Style="{StaticResource Caption}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,2,0,0"
+                                   Text="{Binding StateText}" />
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1" Margin="22,0" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" Text="{Binding PasswordLabel}" />
+
+                            <!-- Not bound, for the same reason as the docked
+                                 prompt and the sign-in manager: PasswordBox.Password
+                                 is deliberately not a dependency property, and
+                                 binding it would park the plaintext in the
+                                 binding engine (M3-03). -->
+                            <PasswordBox x:Name="MasterPassword" PasswordChanged="OnMasterPasswordChanged" />
+
+                            <TextBlock Style="{StaticResource Caption}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,6,0,0"
+                                       Text="{Binding LengthHint}"
+                                       Visibility="{Binding CanProtect, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+
+                            <StackPanel Margin="0,10,0,0"
+                                        Visibility="{Binding IsOpen, Converter={x:Static conv:ValueConverters.BoolToVisibility}}">
+                                <TextBlock Style="{StaticResource Caption}" Text="New master password" />
+                                <PasswordBox x:Name="ReplacementPassword" PasswordChanged="OnReplacementPasswordChanged" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                                <Button Style="{StaticResource PrimaryButton}"
+                                        Content="Unlock"
+                                        Command="{Binding UnlockCommand}"
+                                        Visibility="{Binding NeedsUnlocking, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+
+                                <Button Style="{StaticResource PrimaryButton}"
+                                        Content="Protect this document"
+                                        Command="{Binding ProtectCommand}"
+                                        Visibility="{Binding CanProtect, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+
+                                <Button Style="{StaticResource PrimaryButton}"
+                                        Content="Change"
+                                        Command="{Binding ChangeCommand}"
+                                        Visibility="{Binding IsOpen, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+
+                                <Button Style="{StaticResource GhostButton}"
+                                        Content="Remove"
+                                        Margin="8,0,0,0"
+                                        Command="{Binding StopProtectingCommand}"
+                                        Visibility="{Binding IsOpen, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource Caption}"
+                                       Text="{Binding Notice}"
+                                       TextWrapping="Wrap"
+                                       Margin="0,14,0,0"
+                                       Visibility="{Binding Notice, Converter={x:Static conv:ValueConverters.TextToVisibility}}" />
+
+                            <!-- A master password protects the document and
+                                 not the copies of it the store keeps beside
+                                 it, which carry whatever protection they were
+                                 written under. Said plainly, and offered as
+                                 something to do rather than done. -->
+                            <StackPanel Margin="0,16,0,12"
+                                        Visibility="{Binding ShowOlderCopies, Converter={x:Static conv:ValueConverters.BoolToVisibility}}">
+                                <TextBlock Style="{StaticResource Caption}"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource BrushWarn}"
+                                           Text="{Binding OlderCopiesText}" />
+
+                                <Button Style="{StaticResource GhostButton}"
+                                        Margin="0,8,0,0"
+                                        HorizontalAlignment="Left"
+                                        Content="{Binding ForgetOlderCopiesLabel}"
+                                        Command="{Binding ForgetOlderCopiesCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="22,12,22,20">
+                        <Button Style="{StaticResource GhostButton}"
+                                Content="Close"
+                                Command="{Binding DataContext.CloseSecurityCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                     </StackPanel>
                 </Grid>
             </Border>

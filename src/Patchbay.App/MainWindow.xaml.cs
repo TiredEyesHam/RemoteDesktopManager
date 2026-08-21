@@ -28,6 +28,17 @@ public partial class MainWindow : Window
         // Sessions hold a socket and a decoder each, and a hosted control
         // outlives its window unless something ends it.
         Closed += (_, _) => shell.Dispose();
+
+        // The master password panel is made and thrown away as it opens and
+        // closes, so what it asks for has to be picked up each time (M3-07).
+        shell.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ShellViewModel.DocumentSecurity)
+                && shell.DocumentSecurity is { } security)
+            {
+                security.Emptied += (_, _) => EmptyMasterPasswordBoxes();
+            }
+        };
     }
 
     private void ApplyTitleBarTheme() =>
@@ -109,6 +120,51 @@ public partial class MainWindow : Window
         {
             manager.NewPassword = box.Password;
         }
+    }
+
+    /// <summary>
+    /// Carries the typed master password across (M3-07), for the same reason
+    /// as the other two: <see cref="PasswordBox.Password"/> is deliberately
+    /// not a dependency property.
+    /// </summary>
+    private void OnMasterPasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (sender is PasswordBox box && _shell.DocumentSecurity is { } security)
+        {
+            security.Password = box.Password;
+        }
+    }
+
+    private void OnReplacementPasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (sender is PasswordBox box && _shell.DocumentSecurity is { } security)
+        {
+            security.Replacement = box.Password;
+        }
+    }
+
+    /// <summary>
+    /// Empties the boxes once the master password has been used.
+    ///
+    /// <para>
+    /// The view model clearing its own copy does nothing about the control's,
+    /// and a <see cref="PasswordBox"/> holds what was typed until something
+    /// takes it away. For the one password that opens every other password in
+    /// the document, leaving it live in a control for as long as a panel
+    /// happens to be on screen is worth these six lines.
+    /// </para>
+    ///
+    /// <para>
+    /// Called from the view model rather than from the buttons' Click, because
+    /// Click runs before the command does — clearing there would raise
+    /// PasswordChanged and push an empty string across before anything had
+    /// read it.
+    /// </para>
+    /// </summary>
+    private void EmptyMasterPasswordBoxes()
+    {
+        MasterPassword.Clear();
+        ReplacementPassword.Clear();
     }
 
     private void OnConnectionsTabMouseDown(object sender, MouseButtonEventArgs e)

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Patchbay.Core.Security;
 
 namespace Patchbay.Core.Model;
 
@@ -13,7 +14,7 @@ public sealed class ConnectionDocument
     /// being silently half-read and then saved back over, which is how people
     /// lose connection lists.
     /// </summary>
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -33,6 +34,24 @@ public sealed class ConnectionDocument
     /// deserialises with an empty list, which is what it meant.
     /// </summary>
     public List<CredentialProfile> Credentials { get; set; } = [];
+
+    /// <summary>
+    /// The document key, wrapped under a master password (M3-07), or null when
+    /// this document has none.
+    ///
+    /// <para>
+    /// This one <em>did</em> take a schema bump, unlike
+    /// <see cref="Credentials"/>, and the difference is what happens when a
+    /// build that has never heard of it opens the file. An unknown property is
+    /// dropped on deserialisation and gone on the next save, which for a list
+    /// of profiles means losing some settings and for this means losing the
+    /// only copy of the key to every password in the document. That is exactly
+    /// the failure the version check was put in for — "opening it now would
+    /// discard settings on the next save" — so schema 2 is what a reader must
+    /// understand before it is allowed to write this file back.
+    /// </para>
+    /// </summary>
+    public MasterKeyRecord? MasterKey { get; set; }
 
     [JsonIgnore]
     public IEnumerable<ServerNode> AllServers => Root.DescendantServers();

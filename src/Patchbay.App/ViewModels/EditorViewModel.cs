@@ -58,7 +58,12 @@ public sealed partial class EditorViewModel : ObservableObject
     [ObservableProperty]
     private bool _isDiscardPromptVisible;
 
-    private EditorViewModel(ConnectionNode? existing, GroupNode? parent, bool isServer, string title)
+    private EditorViewModel(
+        ConnectionNode? existing,
+        GroupNode? parent,
+        bool isServer,
+        string title,
+        IReadOnlyList<ChoiceOption>? credentials = null)
     {
         _existing = existing;
         _parent = parent;
@@ -88,7 +93,11 @@ public sealed partial class EditorViewModel : ObservableObject
 
         foreach (SettingDescriptor descriptor in SettingCatalogue.Editable)
         {
-            SettingFieldViewModel field = new(descriptor, _draft, inherited);
+            SettingFieldViewModel field = new(
+                descriptor,
+                _draft,
+                inherited,
+                descriptor.Kind is SettingKind.Credential ? credentials : null);
             field.PropertyChanged += OnFieldChanged;
             fields.Add(field);
         }
@@ -106,15 +115,21 @@ public sealed partial class EditorViewModel : ObservableObject
     }
 
     /// <summary>Editor for a connection that does not exist yet.</summary>
-    public static EditorViewModel ForNewServer(GroupNode parent) =>
-        new(null, parent, isServer: true, "New connection");
+    public static EditorViewModel ForNewServer(
+        GroupNode parent,
+        IReadOnlyList<ChoiceOption>? credentials = null) =>
+        new(null, parent, isServer: true, "New connection", credentials);
 
     /// <summary>Editor for a group that does not exist yet.</summary>
-    public static EditorViewModel ForNewGroup(GroupNode parent) =>
-        new(null, parent, isServer: false, "New group");
+    public static EditorViewModel ForNewGroup(
+        GroupNode parent,
+        IReadOnlyList<ChoiceOption>? credentials = null) =>
+        new(null, parent, isServer: false, "New group", credentials);
 
     /// <summary>Editor for something already in the document.</summary>
-    public static EditorViewModel ForExisting(ConnectionNode node)
+    public static EditorViewModel ForExisting(
+        ConnectionNode node,
+        IReadOnlyList<ChoiceOption>? credentials = null)
     {
         ArgumentNullException.ThrowIfNull(node);
 
@@ -122,7 +137,8 @@ public sealed partial class EditorViewModel : ObservableObject
             node,
             node.Parent,
             node is ServerNode,
-            node is ServerNode ? "Edit connection" : "Edit group");
+            node is ServerNode ? "Edit connection" : "Edit group",
+            credentials);
     }
 
     public string Title { get; }

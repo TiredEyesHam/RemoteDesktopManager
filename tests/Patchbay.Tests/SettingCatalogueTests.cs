@@ -89,10 +89,25 @@ public class SettingCatalogueTests
     }
 
     [Fact]
-    public void The_credential_profile_is_the_only_setting_not_hand_editable() =>
+    public void Nothing_is_hidden_from_the_editor_any_more()
+    {
+        // The credential profile used to be, because a text box full of GUIDs
+        // is worse than no control at all. It is a picker now (M3-10), so the
+        // Hidden kind is unused and this holds it to that until something
+        // needs it again.
+        Assert.Empty(SettingCatalogue.All.Where(d => d.Kind is SettingKind.Hidden));
+    }
+
+    [Fact]
+    public void The_saved_sign_in_is_the_one_setting_the_document_supplies_options_for()
+    {
+        // Its options are the profiles in the document, so whoever builds an
+        // editor has to hand them in. Anything else here would be silently
+        // drawn with an empty list.
         Assert.Equal(
             [nameof(ConnectionSettings.CredentialProfileId)],
-            [.. SettingCatalogue.All.Where(d => d.Kind is SettingKind.Hidden).Select(d => d.PropertyName)]);
+            [.. SettingCatalogue.DocumentDriven.Select(d => d.PropertyName)]);
+    }
 
     // ── The eight groups (M1-03) ────────────────────────────────────────
 

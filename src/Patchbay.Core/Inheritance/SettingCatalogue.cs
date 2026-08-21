@@ -50,7 +50,7 @@ public static class SettingCatalogue
         new(nameof(ConnectionSettings.CredentialMode), "Credentials", CredentialsSection, SettingKind.Choice, typeof(CredentialMode)),
         new(nameof(ConnectionSettings.UserName), "User name", CredentialsSection, SettingKind.Text, typeof(string)),
         new(nameof(ConnectionSettings.Domain), "Domain", CredentialsSection, SettingKind.Text, typeof(string)),
-        new(nameof(ConnectionSettings.CredentialProfileId), "Saved credential", CredentialsSection, SettingKind.Hidden, typeof(Guid)),
+        new(nameof(ConnectionSettings.CredentialProfileId), "Saved sign-in", CredentialsSection, SettingKind.Credential, typeof(Guid), "Only used when the mode above is Profile."),
 
         new(nameof(ConnectionSettings.GatewayUsage), "Use a gateway", GatewaySection, SettingKind.Choice, typeof(GatewayUsage)),
         new(nameof(ConnectionSettings.GatewayHostName), "Gateway server", GatewaySection, SettingKind.Text, typeof(string)),
@@ -97,6 +97,14 @@ public static class SettingCatalogue
     /// <summary>The settings someone can actually edit, in display order.</summary>
     public static IReadOnlyList<SettingDescriptor> Editable { get; } =
         [.. All.Where(d => d.Kind is not SettingKind.Hidden)];
+
+    /// <summary>
+    /// Settings whose options come from the document rather than from the
+    /// catalogue, so whoever builds an editor knows it has to supply them
+    /// (M3-10).
+    /// </summary>
+    public static IReadOnlyList<SettingDescriptor> DocumentDriven { get; } =
+        [.. All.Where(d => d.Kind is SettingKind.Credential)];
 
     /// <exception cref="ArgumentException">No such setting.</exception>
     public static SettingDescriptor For(string propertyName)

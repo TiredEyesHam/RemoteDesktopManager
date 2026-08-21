@@ -97,6 +97,20 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Carries the typed password from the manager's box to the view model
+    /// (M3-10), for the same reason as the docked prompt's: binding
+    /// <see cref="PasswordBox.Password"/> is not possible without parking the
+    /// plaintext in the binding engine.
+    /// </summary>
+    private void OnManagerPasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (sender is PasswordBox box && _shell.CredentialManager is { } manager)
+        {
+            manager.NewPassword = box.Password;
+        }
+    }
+
     private void OnConnectionsTabMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton is MouseButton.Left)

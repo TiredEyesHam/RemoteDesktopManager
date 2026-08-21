@@ -53,7 +53,8 @@ public sealed partial class SettingFieldViewModel : ObservableObject
     public SettingFieldViewModel(
         SettingDescriptor descriptor,
         ConnectionSettings draft,
-        EffectiveSettings? inherited)
+        EffectiveSettings? inherited,
+        IReadOnlyList<ChoiceOption>? supplied = null)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
         ArgumentNullException.ThrowIfNull(draft);
@@ -71,6 +72,15 @@ public sealed partial class SettingFieldViewModel : ObservableObject
         {
             Choices = [.. SettingDisplay.ChoicesFor(descriptor)
                 .Select(value => new ChoiceOption(value, SettingDisplay.Describe(value)))];
+        }
+        else if (descriptor.Kind is SettingKind.Credential)
+        {
+            // Supplied rather than derived: the options are the document's
+            // saved sign-ins and change as somebody adds and deletes them
+            // (M3-10). An empty list is an ordinary state — a document with
+            // no profiles in it — and the picker says so rather than being
+            // hidden, because "there are none" is the thing worth knowing.
+            Choices = supplied ?? [];
         }
 
         object? own = SettingCatalogue.Read(draft, descriptor.PropertyName);
@@ -95,6 +105,12 @@ public sealed partial class SettingFieldViewModel : ObservableObject
     public bool IsBoolean => Descriptor.Kind is SettingKind.Boolean;
 
     public bool IsChoice => Descriptor.Kind is SettingKind.Choice;
+
+    /// <summary>Drawn with the same combo box as a choice, from a different list.</summary>
+    public bool IsCredential => Descriptor.Kind is SettingKind.Credential;
+
+    /// <summary>Whether there is anything to pick. False on a document with no saved sign-ins.</summary>
+    public bool HasChoices => Choices.Count > 0;
 
     /// <summary>What the field would show if the override were switched off.</summary>
     public string InheritedText => SettingDisplay.Describe(_inheritedValue, Descriptor);

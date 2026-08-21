@@ -61,6 +61,16 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private EditorViewModel? _editor;
 
+    /// <summary>
+    /// The saved sign-in manager, or null when it is not open (M3-10). Shares
+    /// the editor's slot in the window, because both are "a panel over the
+    /// details pane" and two of them on screen at once would be two things
+    /// editing the same document from different angles.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsManagingCredentials))]
+    private CredentialManagerViewModel? _credentialManager;
+
     [ObservableProperty]
     private bool _isDeleteRequested;
 
@@ -181,6 +191,34 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     public bool IsEditing => Editor is not null;
 
+    public bool IsManagingCredentials => CredentialManager is not null;
+
+    /// <summary>Opens the saved sign-in manager, closing any editor first.</summary>
+    [RelayCommand]
+    private void ManageCredentials()
+    {
+        Editor = null;
+        CredentialManager = new CredentialManagerViewModel(_document, _credentials, MarkCredentialsChanged);
+    }
+
+    [RelayCommand]
+    private void CloseCredentials() => CredentialManager = null;
+
+    /// <summary>
+    /// Writes the document after a change to the saved sign-ins, and refreshes
+    /// anything showing them.
+    ///
+    /// Every edit saves, like the rest of the shell. A profile is four fields
+    /// and a protected blob, so the cost is a file write nobody notices, and
+    /// the alternative is an Apply button on a panel where nothing else has
+    /// one.
+    /// </summary>
+    private void MarkCredentialsChanged()
+    {
+        _ = SaveAsync("Saved sign-ins updated");
+        OnPropertyChanged(nameof(IsManagingCredentials));
+    }
+
     public bool IsSearching => !string.IsNullOrWhiteSpace(SearchText);
 
     /// <summary>True when the document is empty, which needs its own screen.</summary>
@@ -243,7 +281,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private void NewConnection() =>
         GuardUnsaved(() =>
         {
-            Editor = EditorViewModel.ForNewServer(TargetGroup());
+            Editor = EditorViewModel.ForNewServer(TargetGroup(), CredentialChoices());
             IsDeleteRequested = false;
         });
 
@@ -251,7 +289,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private void NewGroup() =>
         GuardUnsaved(() =>
         {
-            Editor = EditorViewModel.ForNewGroup(TargetGroup());
+            Editor = EditorViewModel.ForNewGroup(TargetGroup(), CredentialChoices());
             IsDeleteRequested = false;
         });
 
@@ -261,7 +299,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         {
             if (SelectedNode is { } node)
             {
-                Editor = EditorViewModel.ForExisting(node.Model);
+                Editor = EditorViewModel.ForExisting(node.Model, CredentialChoices());
                 IsDeleteRequested = false;
             }
         });
@@ -734,7 +772,17 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         RefreshDetail();
     }
 
-    partial void OnEditorChanged(EditorViewModel? value) => OnPropertyChanged(nameof(IsEditing));
+    partial void OnEditorChanged(EditorViewModel? value)
+    {
+        OnPropertyChanged(nameof(IsEditing));
+
+        // The sign-in manager shares this column (M3-10), so leaving both set
+        // would draw one over the other.
+        if (value is not null)
+        {
+            CredentialManager = null;
+        }
+    }
 
     partial void OnActiveTabChanged(SessionTabViewModel? oldValue, SessionTabViewModel? newValue)
     {
@@ -962,6 +1010,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         _ = SaveAsync($"Saved the password for {profile.Label}");
     }
+
+    /// <summary>
+    /// The saved sign-ins an editor can pick from (M3-10), newest list every
+    /// time rather than a cached one: profiles are added and deleted from the
+    /// manager while an editor may be open, and a picker offering a profile
+    /// that has gone is worse than one that is a moment out of date.
+    /// </summary>
+    private IReadOnlyList<ChoiceOption> CredentialChoices() =>
+        [.. _document.Credentials.Select(c => new ChoiceOption(c.Id, c.Label))];
 
     private async Task ConnectAsync(SessionTabViewModel tab)
     {

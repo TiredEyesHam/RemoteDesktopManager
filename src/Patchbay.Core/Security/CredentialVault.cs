@@ -55,15 +55,30 @@ public sealed class CredentialVault
 
         CredentialMode mode = settings.CredentialMode ?? CredentialMode.Prompt;
 
-        if (mode is not CredentialMode.Profile)
+        if (mode is CredentialMode.CurrentUser)
         {
-            // Windows supplies the sign-in, or a person will. Either way the
-            // account name on the node is left to the mapper, which already
-            // falls back to it when an attempt names nobody (M4-10).
+            // Windows supplies it. Naming an account here would be asking for
+            // a logon prompt rather than avoiding one.
             return new CredentialResolution
             {
-                Status = CredentialResolutionStatus.NoProfile,
+                Status = CredentialResolutionStatus.SingleSignOn,
                 Credentials = SessionCredentials.None,
+            };
+        }
+
+        if (mode is CredentialMode.Prompt)
+        {
+            // Ask every time (M3-05). The account name on the node fills the
+            // box in; the mapper falls back to it anyway if nobody types one
+            // (M4-10).
+            return new CredentialResolution
+            {
+                Status = CredentialResolutionStatus.AskEveryTime,
+                Credentials = new SessionCredentials
+                {
+                    UserName = settings.UserName ?? string.Empty,
+                    Domain = settings.Domain ?? string.Empty,
+                },
             };
         }
 

@@ -225,4 +225,44 @@ public class CredentialPromptTests
         Assert.DoesNotContain("hunter2", prompt.ToString(), StringComparison.Ordinal);
         Assert.Contains("CORP\\svc-deploy", prompt.ToString(), StringComparison.Ordinal);
     }
+
+    // ── The way past (M3-05) ────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(CredentialPromptReason.Required)]
+    [InlineData(CredentialPromptReason.Unreadable)]
+    [InlineData(CredentialPromptReason.ProfileMissing)]
+    public void A_panel_raised_before_connecting_offers_a_way_past(CredentialPromptReason reason)
+    {
+        // The server has its own logon screen, and somebody who does not want
+        // to type into Patchbay is entitled to go and use it.
+        CredentialPrompt prompt = new(Endpoint, reason);
+
+        Assert.True(prompt.IsBeforeConnecting);
+        Assert.Equal("Connect without one", prompt.DismissLabel);
+    }
+
+    [Fact]
+    public void A_panel_over_a_refusal_has_nowhere_past_to_go()
+    {
+        // The screen they would land on is the one that just said no.
+        CredentialPrompt prompt = AfterRefusal();
+
+        Assert.False(prompt.IsBeforeConnecting);
+        Assert.Equal("Not now", prompt.DismissLabel);
+    }
+
+    [Fact]
+    public void The_second_button_never_says_cancel()
+    {
+        // On a pre-connect panel it starts a connection, and a button labelled
+        // Cancel that connects is the worst kind of surprise.
+        foreach (CredentialPromptReason reason in Enum.GetValues<CredentialPromptReason>())
+        {
+            Assert.DoesNotContain(
+                "Cancel",
+                new CredentialPrompt(Endpoint, reason).DismissLabel,
+                StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }

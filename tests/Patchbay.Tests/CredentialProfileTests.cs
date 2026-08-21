@@ -238,25 +238,62 @@ public class CredentialProfileTests
     }
 
     [Fact]
-    public void Prompting_asks_for_no_profile_at_all()
+    public void Prompting_means_ask_every_time()
     {
+        // Not the same as single sign-on, which it used to share a status
+        // with. One means always ask and the other means never (M3-05).
         CredentialResolution resolved = Vault().Resolve(
             new ConnectionDocument(),
-            new ConnectionSettings { CredentialMode = CredentialMode.Prompt });
+            new ConnectionSettings { CredentialMode = CredentialMode.Prompt, UserName = "stored" });
 
-        Assert.Equal(CredentialResolutionStatus.NoProfile, resolved.Status);
-        Assert.Equal(SessionCredentials.None, resolved.Credentials);
+        Assert.Equal(CredentialResolutionStatus.AskEveryTime, resolved.Status);
+        Assert.True(resolved.NeedsPrompt);
+        Assert.Equal(CredentialPromptReason.Required, resolved.PromptReason);
+
+        // The stored account fills the box in.
+        Assert.Equal("stored", resolved.Credentials.UserName);
     }
 
     [Fact]
-    public void Single_sign_on_asks_for_no_profile_either()
+    public void Single_sign_on_is_complete_and_asks_nothing()
     {
         CredentialResolution resolved = Vault().Resolve(
             new ConnectionDocument(),
             new ConnectionSettings { CredentialMode = CredentialMode.CurrentUser });
 
-        Assert.Equal(CredentialResolutionStatus.NoProfile, resolved.Status);
+        Assert.Equal(CredentialResolutionStatus.SingleSignOn, resolved.Status);
         Assert.Equal(SessionCredentials.None, resolved.Credentials);
+        Assert.True(resolved.IsComplete);
+        Assert.False(resolved.NeedsPrompt);
+        Assert.Null(resolved.PromptReason);
+    }
+
+    [Fact]
+    public void A_profile_with_no_password_asks_in_the_ordinary_way()
+    {
+        CredentialVault vault = Vault();
+        (ConnectionDocument document, CredentialProfile profile) = WithProfile(vault, withPassword: false);
+
+        CredentialResolution resolved = vault.Resolve(document, Using(profile.Id));
+
+        Assert.True(resolved.NeedsPrompt);
+        Assert.Equal(CredentialPromptReason.Required, resolved.PromptReason);
+    }
+
+    [Fact]
+    public void A_missing_profile_and_an_unreadable_password_each_say_why()
+    {
+        CredentialVault vault = Vault();
+        (ConnectionDocument document, CredentialProfile profile) = WithProfile(vault, withPassword: false);
+        profile.ProtectedPassword = "pb1:" + ReversingProtector.Name + ":" + Convert.ToBase64String([0xFF, 0x01]);
+
+        Assert.Equal(
+            CredentialPromptReason.Unreadable,
+            vault.Resolve(document, Using(profile.Id)).PromptReason);
+
+        Assert.Equal(
+            CredentialPromptReason.ProfileMissing,
+            vault.Resolve(new ConnectionDocument(), Using(Guid.NewGuid())).PromptReason);
     }
 
     [Fact]

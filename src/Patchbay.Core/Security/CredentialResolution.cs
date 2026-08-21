@@ -17,10 +17,11 @@ public enum CredentialResolutionStatus
     Resolved = 0,
 
     /// <summary>
-    /// No profile was asked for. Prompt and current-user connections land here
-    /// and it is not a problem; the sign-in comes from somewhere else.
+    /// Windows supplies the sign-in and nothing should ever be asked. The
+    /// signed-in ticket goes over CredSSP, and naming an account would be
+    /// asking for a logon prompt rather than avoiding one.
     /// </summary>
-    NoProfile = 1,
+    SingleSignOn = 1,
 
     /// <summary>
     /// A profile was asked for and is not in this document — deleted while
@@ -36,6 +37,19 @@ public enum CredentialResolutionStatus
     /// protects to the current user. The stored value must be left alone.
     /// </summary>
     PasswordUnreadable = 3,
+
+    /// <summary>
+    /// The connection is set to ask every time and nothing has been typed yet
+    /// (M3-05).
+    ///
+    /// Separate from <see cref="SingleSignOn"/>, which it used to share a
+    /// status with, because they are opposite instructions: one means never
+    /// ask and the other means always. Conflating them is how a connection set
+    /// to prompt quietly connects with nothing and lands on the control's own
+    /// logon screen — or, with network level authentication required,
+    /// fails outright, because there is no logon screen to land on.
+    /// </summary>
+    AskEveryTime = 4,
 }
 
 /// <summary>
@@ -57,7 +71,31 @@ public sealed record CredentialResolution
     public CredentialProfile? Profile { get; init; }
 
     /// <summary>Whether the connection can go ahead without asking anybody anything.</summary>
-    public bool IsComplete => Status is CredentialResolutionStatus.Resolved && Credentials.HasPassword;
+    public bool IsComplete =>
+        Status is CredentialResolutionStatus.SingleSignOn
+        || (Status is CredentialResolutionStatus.Resolved && Credentials.HasPassword);
+
+    /// <summary>
+    /// Whether a panel should be docked before connecting (M3-05).
+    ///
+    /// True for everything that is not already complete, including a profile
+    /// found with no password saved against it. False for single sign-on,
+    /// where asking would be asking a question Windows has already answered.
+    /// </summary>
+    public bool NeedsPrompt => !IsComplete;
+
+    /// <summary>
+    /// What the panel should say it is asking about, or null when nothing
+    /// should be asked.
+    /// </summary>
+    public CredentialPromptReason? PromptReason => Status switch
+    {
+        CredentialResolutionStatus.SingleSignOn => null,
+        CredentialResolutionStatus.ProfileMissing => CredentialPromptReason.ProfileMissing,
+        CredentialResolutionStatus.PasswordUnreadable => CredentialPromptReason.Unreadable,
+        _ when IsComplete => null,
+        _ => CredentialPromptReason.Required,
+    };
 
     /// <summary>
     /// Whether the stored password must be left exactly as it is. True for

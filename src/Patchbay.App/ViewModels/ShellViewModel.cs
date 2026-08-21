@@ -497,17 +497,61 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         tab.ForgetReconnect();
 
-        // A profile that has gone, or a password this Windows account cannot
-        // read (M3-01). Neither stops the connection: the session comes up and
-        // shows its own logon screen, which is what M3-06 will put a panel
-        // over. Saying so beforehand is the difference between that and a
-        // logon prompt nobody expected.
+        // Ask before connecting rather than after failing (M3-05). With
+        // network level authentication required there is no logon screen to
+        // fall back on — the attempt simply fails — so a connection set to
+        // prompt has to be asked first or not asked at all.
+        if (NeedsAsking(tab, sign))
+        {
+            Status = $"{tab.Title} needs a sign-in";
+            return;
+        }
+
         if (sign.Notice is { } notice)
         {
             Status = notice;
         }
 
         await ConnectAsync(tab).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Docks a panel and answers whether connecting should wait for it
+    /// (M3-05).
+    ///
+    /// <para>
+    /// The cache is the session's own <see cref="SessionRequest.Credentials"/>,
+    /// put there by <c>UseCredentials</c> when a panel was answered. That is
+    /// what makes this per session rather than per attempt: a reconnect after
+    /// a dropped link reuses what was typed, and closing the tab forgets it
+    /// along with everything else the session held. Nothing is cached across
+    /// tabs, so two tabs on the same machine ask separately — which is
+    /// tedious exactly once and wrong every time the alternative is taken.
+    /// </para>
+    /// </summary>
+    private bool NeedsAsking(SessionTabViewModel tab, CredentialResolution sign)
+    {
+        if (!sign.NeedsPrompt || sign.PromptReason is not { } reason)
+        {
+            return false;
+        }
+
+        // Already answered for this session. An automatic reconnect (M4-08)
+        // must not stop to ask at three in the morning, and M4-08 already
+        // refuses to retry a refusal, so a stale cached password cannot be
+        // fed to an account until it locks.
+        if (!tab.Session.Request.Credentials.IsEmpty)
+        {
+            return false;
+        }
+
+        tab.Ask(new CredentialPrompt(
+            tab.Endpoint,
+            reason,
+            sign.Credentials,
+            _credentials.CanSavePasswords));
+
+        return true;
     }
 
     /// <summary>Connects a tab that is not connected. Retry and reconnect are the same gesture.</summary>
@@ -839,15 +883,43 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
         tab.Session.UseCredentials(answer);
 
-        // Down before up. A session showing a logon screen is still connected,
-        // and ConnectAsync refuses one that is.
+        // Down before up, and safe on a session that was never up: a panel
+        // docked before the first attempt (M3-05) leaves nothing to
+        // disconnect, while one docked over a refused sign-in (M4-10) leaves a
+        // session that is still connected and that ConnectAsync would refuse.
         await tab.Session.DisconnectAsync().ConfigureAwait(true);
         await ConnectAsync(tab).ConfigureAwait(true);
     }
 
-    /// <summary>Dismisses the panel, leaving the session exactly as it was.</summary>
+    /// <summary>
+    /// Dismisses the panel (M3-05).
+    ///
+    /// On one raised before connecting this connects anyway, with nothing, and
+    /// the server shows its own logon screen. That is the way past, and
+    /// without it a connection set to ask every time has no route to the
+    /// screen it would have shown before this item existed — pressing
+    /// Connect again would only put the panel back.
+    ///
+    /// On one raised over a refusal there is nowhere to go past to, so it
+    /// simply goes away and leaves the session as it was.
+    /// </summary>
     [RelayCommand]
-    private void DismissCredentials(SessionTabViewModel? tab) => tab?.StopAsking();
+    private async Task DismissCredentialsAsync(SessionTabViewModel? tab)
+    {
+        if (tab?.Prompt is not { } prompt)
+        {
+            return;
+        }
+
+        bool connectAnyway = prompt.Prompt.IsBeforeConnecting;
+
+        tab.StopAsking();
+
+        if (connectAnyway && tab.CanConnect)
+        {
+            await ConnectAsync(tab).ConfigureAwait(true);
+        }
+    }
 
     /// <summary>
     /// Keeps a password against the profile the connection names, when it

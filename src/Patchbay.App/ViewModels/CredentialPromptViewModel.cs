@@ -33,6 +33,9 @@ public sealed partial class CredentialPromptViewModel : ObservableObject
 
     public bool CanOfferToSave => _prompt.CanOfferToSave;
 
+    /// <summary>What the second button says, which depends on what it does.</summary>
+    public string DismissLabel => _prompt.DismissLabel;
+
     public string UserName
     {
         get => _prompt.UserName;

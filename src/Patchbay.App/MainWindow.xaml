@@ -186,7 +186,7 @@
                                 CommandParameter="{Binding DataContext, ElementName=PromptRoot}" />
 
                         <Button Style="{StaticResource GhostButton}"
-                                Content="Not now"
+                                Content="{Binding DismissLabel}"
                                 Margin="8,0,0,0"
                                 Command="{Binding DataContext.DismissCredentialsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding DataContext, ElementName=PromptRoot}" />

@@ -115,6 +115,25 @@ public sealed class CredentialPrompt
         _ => $"Sign in to {Endpoint}",
     };
 
+    /// <summary>
+    /// Whether this panel went up before the session was connected (M3-05), as
+    /// opposed to over one the far end has already refused (M4-10).
+    ///
+    /// It decides what the second button means, and the two meanings are not
+    /// close. Before connecting there is a way past: the server has its own
+    /// logon screen, and somebody who does not want to type into Patchbay can
+    /// go and use it. After a refusal there is nothing to go past — the
+    /// screen they would land on is the one that just said no.
+    /// </summary>
+    public bool IsBeforeConnecting => Reason is not CredentialPromptReason.Refused;
+
+    /// <summary>
+    /// What the second button says. Never "Cancel": on a panel raised before
+    /// connecting, dismissing it connects anyway, and a button labelled Cancel
+    /// that starts a connection is the worst kind of surprise.
+    /// </summary>
+    public string DismissLabel => IsBeforeConnecting ? "Connect without one" : "Not now";
+
     /// <summary>The line under the title, or null when the title says enough.</summary>
     public string? Detail => Reason switch
     {

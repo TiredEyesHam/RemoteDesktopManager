@@ -90,24 +90,56 @@ all rather than offered and then refused.
 
 ## In memory
 
-Cleartext exists while a session connects. The RDP control takes its password
-as a BSTR, so a managed `string` is unavoidable at that moment, and a
-`SecureString` earlier in the chain would buy the appearance of care and one
-more marshalling step. `M3-03` is about shortening that window; abolishing it
-is not possible.
+**A .NET `string` cannot be erased.** It is immutable, it may be interned, and
+a compacting collection can copy it elsewhere and leave the old bytes behind
+with nothing pointing at them. So a password that arrives as a string at nine
+in the morning is still legible in a memory dump at five, and no code in the
+process can change that.
 
-What is done instead:
+`Secret` (`M3-03`) is what Patchbay holds instead. The bytes live in a buffer
+from the pinned object heap, which the collector never moves — pinning is not
+about interop here, it is that a buffer which has been moved cannot be erased,
+because erasing writes over where it is and not over where it has been.
+Verified rather than assumed: across a forced compacting gen-2 collection an
+ordinary array moved and a pinned one did not.
 
-- A typed password lives on a `CredentialPrompt` and is dropped by `Forget()`
-  as soon as it has been handed to an attempt.
-- A per-session sign-in lives on the session's own request and dies with the
-  session. Nothing is cached across tabs or across restarts.
-- `PasswordBox.Password` is never data-bound. Binding it would keep the
-  plaintext in the WPF binding engine for as long as the panel is on screen,
-  which is one more copy for no benefit. Code-behind pushes it across instead.
-- The manager can set and forget a password and cannot read one back. That is
-  deliberate: a screen that displays stored passwords is a screen that will be
-  asked to, by whoever is standing behind the person using it.
+The bytes are UTF-8, which is what `M3-02` already protects and stores.
+Changing that would make every password saved by an earlier version
+unreadable.
+
+Where the plaintext is erased:
+
+- A password read out of the store never becomes a string on the way. It goes
+  from the protector's decrypted bytes straight into a `Secret`.
+- A session erases the sign-in it was given when it ends. That is the
+  longest-lived copy in the application, because a tab can be open all day.
+- A session handed a different sign-in after one was refused erases the
+  refused one immediately.
+- The credential manager erases what was typed as soon as it is saved.
+
+**Erasing destroys the plaintext and not the identity.** A `Secret` keeps a
+fingerprint — HMAC-SHA-256 under a key generated fresh each time the process
+starts — so it can still answer whether something equals it after the password
+itself is gone. That is what lets a re-prompt go on refusing to resubmit the
+password the far end just rejected without keeping that password anywhere.
+The per-process key means such a fingerprint cannot be looked up in a table of
+hashed common passwords, or matched against one from another run.
+
+What is not fixed, and cannot be here:
+
+- The RDP control takes its password as a BSTR, so a `string` has to exist at
+  the moment of connecting. `RevealAsString` is the one call that makes one,
+  at the dispatch site, and the string it returns cannot be taken back.
+- `PasswordBox.Password` hands out a fresh string on every read, and WPF owns
+  those. Binding it would be worse still, keeping the plaintext in the binding
+  engine for as long as the panel is up, so code-behind pushes it across
+  instead — but the strings WPF made are not reachable.
+- Nothing locks the pages out of the swap file. That needs `VirtualLock`,
+  which is Windows-only and unsafe, and is not built.
+
+The manager can set and forget a password and cannot read one back. That is
+deliberate: a screen that displays stored passwords is a screen that will be
+asked to, by whoever is standing behind the person using it.
 
 ## Printing, logging and diagnostics
 
@@ -221,7 +253,8 @@ badge that is always wrong is one people stop reading.
 | Gap | Item |
 |---|---|
 | No document master password; DPAPI is the only scheme | `M3-07` |
-| Cleartext window at connect time is not minimised | `M3-03` |
+| A password handed to the RDP control must be a `string` | not fixable at this layer |
+| Secret buffers are not locked out of the swap file | `VirtualLock`, not built |
 | No Credential Manager store | `M3-04` |
 | A secret concatenated into a message template is not redactable | review, not run time |
 | Clipboard handling not built | `M3-09` |

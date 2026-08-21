@@ -125,10 +125,10 @@ public class SecretProtectionTests
     {
         ReversingProtector protector = new();
 
-        SecretUnprotectResult result = protector.Unprotect(protector.Protect(Password));
+        SecretUnprotectResult result = protector.Unprotect(protector.Protect(Secret.From(Password)));
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(Password, result.Secret);
+        Assert.Equal(Password, result.Secret!.RevealAsString());
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class SecretProtectionTests
     {
         ReversingProtector protector = new();
 
-        string stored = protector.Protect(Password);
+        string stored = protector.Protect(Secret.From(Password));
 
         Assert.DoesNotContain(Password, stored, StringComparison.Ordinal);
         Assert.DoesNotContain("staple", stored, StringComparison.OrdinalIgnoreCase);
@@ -147,7 +147,7 @@ public class SecretProtectionTests
     {
         ReversingProtector protector = new();
 
-        Assert.True(SecretEnvelope.TryParse(protector.Protect(Password), out SecretEnvelope? read));
+        Assert.True(SecretEnvelope.TryParse(protector.Protect(Secret.From(Password)), out SecretEnvelope? read));
         Assert.Equal(protector.Scheme, read.Scheme);
     }
 
@@ -156,7 +156,7 @@ public class SecretProtectionTests
     {
         ReversingProtector protector = new();
 
-        Assert.Throws<ArgumentException>(() => protector.Protect(string.Empty));
+        Assert.Throws<ArgumentException>(() => protector.Protect(Secret.Empty));
         Assert.Throws<ArgumentNullException>(() => protector.Protect(null!));
     }
 
@@ -167,7 +167,7 @@ public class SecretProtectionTests
 
         const string awkward = "pässwörd–ünïcode";
 
-        Assert.Equal(awkward, protector.Unprotect(protector.Protect(awkward)).Secret);
+        Assert.Equal(awkward, protector.Unprotect(protector.Protect(Secret.From(awkward))).Secret!.RevealAsString());
     }
 
     // ── Reading something that cannot be read ───────────────────────────
@@ -236,7 +236,7 @@ public class SecretProtectionTests
         string stored = SecretEnvelope.Create(ReversingProtector.Name, [1]).ToString();
 
         Assert.Equal(SecretUnprotectStatus.Unavailable, protector.Unprotect(stored).Status);
-        Assert.Throws<SecretProtectionException>(() => protector.Protect(Password));
+        Assert.Throws<SecretProtectionException>(() => protector.Protect(Secret.From(Password)));
     }
 
     // ── Refusing to protect ─────────────────────────────────────────────
@@ -245,7 +245,7 @@ public class SecretProtectionTests
     public void The_unavailable_protector_refuses_rather_than_storing_a_password_in_the_clear()
     {
         SecretProtectionException ex = Assert.Throws<SecretProtectionException>(
-            () => UnavailableSecretProtector.Instance.Protect(Password));
+            () => UnavailableSecretProtector.Instance.Protect(Secret.From(Password)));
 
         Assert.DoesNotContain(Password, ex.Message, StringComparison.Ordinal);
         Assert.False(UnavailableSecretProtector.Instance.IsAvailable);
@@ -273,7 +273,7 @@ public class SecretProtectionTests
         // A record prints every property it has, and one of this record's
         // properties is a password. One log line, one debugger watch, one
         // string interpolation, and it is written down somewhere permanent.
-        string printed = SecretUnprotectResult.Success(Password).ToString();
+        string printed = SecretUnprotectResult.Success(Secret.From(Password)).ToString();
 
         Assert.DoesNotContain(Password, printed, StringComparison.Ordinal);
         Assert.Contains(nameof(SecretUnprotectStatus.Unprotected), printed, StringComparison.Ordinal);
@@ -319,9 +319,9 @@ public class SecretProtectionTests
 
         public override bool IsAvailable => Working;
 
-        protected override byte[] ProtectCore(string secret)
+        protected override byte[] ProtectCore(ReadOnlySpan<byte> utf8)
         {
-            byte[] bytes = Encoding.UTF8.GetBytes(secret);
+            byte[] bytes = utf8.ToArray();
             Array.Reverse(bytes);
             return bytes;
         }
@@ -335,7 +335,7 @@ public class SecretProtectionTests
 
             byte[] bytes = payload.ToArray();
             Array.Reverse(bytes);
-            return SecretUnprotectResult.Success(Encoding.UTF8.GetString(bytes));
+            return SecretUnprotectResult.Success(Secret.FromUtf8(bytes));
         }
     }
 }

@@ -1,3 +1,4 @@
+using Patchbay.Core.Security;
 using Patchbay.Core.Model;
 using Patchbay.Core.Sessions;
 
@@ -486,7 +487,7 @@ public class FakeRemoteSessionTests
         session.SimulateLogonPrompt(StatusLogonFailure);
 
         await session.DisconnectAsync();
-        session.UseCredentials(new SessionCredentials { UserName = "svc-other", Password = "x" });
+        session.UseCredentials(new SessionCredentials { UserName = "svc-other", Password = Secret.From("x") });
         await session.ConnectAsync();
 
         Assert.Equal("svc-other", session.Request.Credentials.UserName);

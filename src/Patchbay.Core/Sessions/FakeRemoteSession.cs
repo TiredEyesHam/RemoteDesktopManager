@@ -69,7 +69,17 @@ public sealed class FakeRemoteSession : IRemoteSession
                 $"The sign-in cannot be changed while a session is {State}.");
         }
 
+        SessionCredentials replaced = Request.Credentials;
+
         Request = Request with { Credentials = credentials };
+
+        // The sign-in that was just refused, erased now that a different one
+        // has arrived (M3-03). Its fingerprint outlives it, so a prompt can go
+        // on refusing to resubmit it.
+        if (!ReferenceEquals(replaced.Password, credentials.Password))
+        {
+            replaced.Forget();
+        }
     }
 
     /// <summary>How many times this session has been connected, successfully or not.</summary>
@@ -276,6 +286,12 @@ public sealed class FakeRemoteSession : IRemoteSession
 
         _disposed = true;
         _lifecycle.Changed -= OnLifecycleChanged;
+
+        // The password this session was given, erased rather than left for a
+        // collection that may never come (M3-03). It is the longest-lived copy
+        // in the application: a tab can be open all day.
+        Request.Credentials.Forget();
+
         StateChanged = null;
         VitalsChanged = null;
     }

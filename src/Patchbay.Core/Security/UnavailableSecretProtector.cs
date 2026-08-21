@@ -40,9 +40,9 @@ public sealed class UnavailableSecretProtector : ISecretProtector
     public bool IsAvailable => false;
 
     /// <inheritdoc />
-    public string Protect(string secret)
+    public string Protect(Secret secret)
     {
-        ArgumentException.ThrowIfNullOrEmpty(secret);
+        ArgumentNullException.ThrowIfNull(secret);
 
         throw new SecretProtectionException(
             "Patchbay has no way to protect a password on this machine, so it will not save "

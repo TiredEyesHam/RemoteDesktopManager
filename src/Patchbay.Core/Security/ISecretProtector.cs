@@ -47,11 +47,11 @@ public interface ISecretProtector
     /// <see cref="SecretEnvelope"/>, so that whoever reads it back knows what
     /// it is.
     /// </summary>
-    /// <exception cref="ArgumentException"><paramref name="secret"/> is null or empty.</exception>
+    /// <exception cref="ArgumentException"><paramref name="secret"/> is empty.</exception>
     /// <exception cref="SecretProtectionException">
     /// Protection is unavailable or failed. The caller must not store anything.
     /// </exception>
-    string Protect(string secret);
+    string Protect(Secret secret);
 
     /// <summary>
     /// Reads a stored secret back. Never throws for input it does not like:

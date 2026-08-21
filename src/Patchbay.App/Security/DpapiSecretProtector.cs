@@ -83,12 +83,18 @@ public sealed class DpapiSecretProtector : SecretProtector
     }
 
     /// <inheritdoc />
-    protected override byte[] ProtectCore(string secret)
+    protected override byte[] ProtectCore(ReadOnlySpan<byte> utf8)
     {
-        byte[] plain = Encoding.UTF8.GetBytes(secret);
+        // ProtectedData wants an array, and the bytes are only lent, so this
+        // makes the one copy it needs and erases it on the way out (M3-03).
+        // Before M3-03 the caller passed a string and there was nothing to
+        // erase.
+        byte[] plain = GC.AllocateArray<byte>(utf8.Length, pinned: true);
 
         try
         {
+            utf8.CopyTo(plain);
+
             return ProtectedData.Protect(plain, ApplicationEntropy, DataProtectionScope.CurrentUser);
         }
         catch (CryptographicException ex)
@@ -100,9 +106,6 @@ public sealed class DpapiSecretProtector : SecretProtector
         }
         finally
         {
-            // The copy this method made, gone before it is garbage. The string
-            // it came from is not ours to clear and outlives this call; that
-            // is M3-03's problem, and it needs a different API to solve.
             CryptographicOperations.ZeroMemory(plain);
         }
     }
@@ -117,7 +120,9 @@ public sealed class DpapiSecretProtector : SecretProtector
             plain = ProtectedData.Unprotect(
                 payload.ToArray(), ApplicationEntropy, DataProtectionScope.CurrentUser);
 
-            return SecretUnprotectResult.Success(Encoding.UTF8.GetString(plain));
+            // Straight from bytes to a Secret. Decoding to a string here would
+            // put the password in the heap for the rest of the run (M3-03).
+            return SecretUnprotectResult.Success(Secret.FromUtf8(plain));
         }
         catch (CryptographicException)
         {

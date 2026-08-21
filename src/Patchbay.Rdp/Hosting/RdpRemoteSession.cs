@@ -142,7 +142,17 @@ public sealed class RdpRemoteSession : IRemoteSession, IHostedSessionView
                 $"The sign-in cannot be changed while a session is {State}.");
         }
 
+        SessionCredentials replaced = Request.Credentials;
+
         Request = Request with { Credentials = credentials };
+
+        // The sign-in that was just refused, erased now that a different one
+        // has arrived (M3-03). Its fingerprint outlives it, so a prompt can go
+        // on refusing to resubmit it.
+        if (!ReferenceEquals(replaced.Password, credentials.Password))
+        {
+            replaced.Forget();
+        }
     }
 
     /// <inheritdoc />
@@ -288,6 +298,11 @@ public sealed class RdpRemoteSession : IRemoteSession, IHostedSessionView
         // which is the point: a closed tab should stop costing a socket and a
         // decoder now rather than at the next collection.
         _pane.Dispose();
+
+        // The password this session was given, erased rather than left for a
+        // collection that may never come (M3-03). It is the longest-lived copy
+        // in the application: a tab can be open all day.
+        Request.Credentials.Forget();
 
         StateChanged = null;
         VitalsChanged = null;

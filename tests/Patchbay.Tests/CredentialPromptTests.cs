@@ -1,3 +1,4 @@
+using Patchbay.Core.Security;
 using Patchbay.Core.Sessions;
 
 namespace Patchbay.Tests;
@@ -18,7 +19,7 @@ public class CredentialPromptTests
     {
         UserName = "svc-deploy",
         Domain = "CORP",
-        Password = "the-wrong-one",
+        Password = Secret.From("the-wrong-one"),
     };
 
     private static CredentialPrompt AfterRefusal(bool canSave = false)
@@ -194,7 +195,7 @@ public class CredentialPromptTests
 
         Assert.Equal("svc-deploy", answer.UserName);
         Assert.Equal("CORP", answer.Domain);
-        Assert.Equal("trailing ", answer.Password);
+        Assert.Equal("trailing ", answer.Password.RevealAsString());
     }
 
     [Fact]

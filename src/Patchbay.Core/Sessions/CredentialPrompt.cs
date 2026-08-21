@@ -1,3 +1,5 @@
+using Patchbay.Core.Security;
+
 namespace Patchbay.Core.Sessions;
 
 /// <summary>
@@ -157,19 +159,36 @@ public sealed class CredentialPrompt
     /// The password is taken as typed and the account is trimmed, because a
     /// name pasted out of a spreadsheet arrives with a space on the end and a
     /// password legitimately may.
+    ///
+    /// <para>
+    /// This is where the typed password stops being a <see cref="string"/> and
+    /// becomes a <see cref="Secret"/> (M3-03). Once, at the point of
+    /// answering, rather than on every keystroke: the box hands over a fresh
+    /// string each time it is read, and turning each of those into a pinned
+    /// buffer would be a great deal of churn to shorten the life of a copy
+    /// that WPF made and Patchbay cannot reach.
+    /// </para>
     /// </summary>
     public SessionCredentials ToCredentials() => new()
     {
         UserName = UserName.Trim(),
         Domain = Domain.Trim(),
-        Password = Password,
+        Password = Secret.From(Password),
     };
 
     /// <summary>
     /// Whether this is word for word what the far end just refused. True is a
     /// reason to stop, not a reason to warn and continue.
+    ///
+    /// <para>
+    /// Asked without building the answer, because it is asked on every
+    /// keystroke. It also goes on being answerable after the refused password
+    /// has been erased, since what is compared is the fingerprint and not the
+    /// plaintext.
+    /// </para>
     /// </summary>
-    public bool IsUnchanged => Refused is { } refused && refused == ToCredentials();
+    public bool IsUnchanged =>
+        Refused is { } refused && refused.Matches(UserName.Trim(), Domain.Trim(), Password);
 
     /// <summary>
     /// Whether pressing Connect should do anything. False for an empty answer,

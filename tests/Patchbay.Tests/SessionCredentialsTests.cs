@@ -1,3 +1,5 @@
+using Patchbay.Core.Security;
+
 using Patchbay.Core.Model;
 using Patchbay.Core.Sessions;
 
@@ -19,13 +21,13 @@ namespace Patchbay.Tests;
 /// </summary>
 public class SessionCredentialsTests
 {
-    private const string Secret = "hunter2-correct-horse";
+    private const string Plaintext = "hunter2-correct-horse";
 
     private static SessionCredentials Full => new()
     {
         UserName = "svc-deploy",
         Domain = "CORP",
-        Password = Secret,
+        Password = Secret.From(Plaintext),
     };
 
     private static SessionRequest RequestFor(
@@ -69,7 +71,7 @@ public class SessionCredentialsTests
     {
         // The control is entitled to a password with no user name: the name
         // may be coming from the document while only the secret was typed.
-        SessionCredentials credentials = new() { Password = Secret };
+        SessionCredentials credentials = new() { Password = Secret.From(Plaintext) };
 
         Assert.False(credentials.IsEmpty);
         Assert.True(credentials.HasPassword);
@@ -104,7 +106,7 @@ public class SessionCredentialsTests
 
     [Fact]
     public void A_different_password_is_a_different_sign_in()
-        => Assert.NotEqual(Full, Full with { Password = "something-else" });
+        => Assert.NotEqual(Full, Full with { Password = Secret.From("something-else") });
 
     [Fact]
     public void A_different_account_is_a_different_sign_in()
@@ -117,7 +119,7 @@ public class SessionCredentialsTests
     {
         string printed = Full.ToString();
 
-        Assert.DoesNotContain(Secret, printed, StringComparison.Ordinal);
+        Assert.DoesNotContain(Plaintext, printed, StringComparison.Ordinal);
         Assert.Contains("CORP\\svc-deploy", printed, StringComparison.Ordinal);
         Assert.Contains("supplied", printed, StringComparison.Ordinal);
     }
@@ -136,7 +138,7 @@ public class SessionCredentialsTests
     {
         // A record prints every property it has, so this is the route the
         // password takes without anybody writing a line of code.
-        Assert.DoesNotContain(Secret, RequestFor(Full).ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(Plaintext, RequestFor(Full).ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -145,7 +147,7 @@ public class SessionCredentialsTests
         IReadOnlyList<RdpSettingWrite> plan = RdpSettingsMapper.Plan(RequestFor(Full));
 
         Assert.DoesNotContain(
-            Secret,
+            Plaintext,
             string.Join(Environment.NewLine, plan.Select(w => w.ToString())),
             StringComparison.Ordinal);
     }
@@ -156,7 +158,7 @@ public class SessionCredentialsTests
         string printed = Password(RdpSettingsMapper.Plan(RequestFor(Full))).ToString();
 
         Assert.Contains("ClearTextPassword", printed, StringComparison.Ordinal);
-        Assert.DoesNotContain(Secret, printed, StringComparison.Ordinal);
+        Assert.DoesNotContain(Plaintext, printed, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -167,10 +169,10 @@ public class SessionCredentialsTests
         string longer = string.Concat(Enumerable.Repeat("x", 64));
 
         RdpSettingWrite one = Password(RdpSettingsMapper.Plan(
-            RequestFor(new SessionCredentials { UserName = "a", Password = "x" })));
+            RequestFor(new SessionCredentials { UserName = "a", Password = Secret.From("x") })));
 
         RdpSettingWrite other = Password(RdpSettingsMapper.Plan(
-            RequestFor(new SessionCredentials { UserName = "a", Password = longer })));
+            RequestFor(new SessionCredentials { UserName = "a", Password = Secret.From(longer) })));
 
         Assert.Equal(one.ToString(), other.ToString());
     }
@@ -191,9 +193,9 @@ public class SessionCredentialsTests
             ],
         };
 
-        Assert.DoesNotContain(Secret, report.Entries[0].ToString(), StringComparison.Ordinal);
-        Assert.DoesNotContain(Secret, report.ToString(), StringComparison.Ordinal);
-        Assert.DoesNotContain(Secret, report.Notice ?? string.Empty, StringComparison.Ordinal);
+        Assert.DoesNotContain(Plaintext, report.Entries[0].ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(Plaintext, report.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain(Plaintext, report.Notice ?? string.Empty, StringComparison.Ordinal);
     }
 
     // ── Where the password goes ─────────────────────────────────────────
@@ -205,7 +207,7 @@ public class SessionCredentialsTests
 
         Assert.Equal(RdpSettingTarget.AdvancedSettings, password.Target);
         Assert.Equal("ClearTextPassword", password.Name);
-        Assert.Equal(Secret, password.Value);
+        Assert.Equal(Plaintext, ((Secret)password.Value).RevealAsString());
         Assert.True(password.IsSecret);
     }
 
@@ -279,7 +281,7 @@ public class SessionCredentialsTests
         // password, which is the worst shape a failure can take here.
         IReadOnlyList<RdpSettingWrite> plan = RdpSettingsMapper.Plan(
             RequestFor(
-                new SessionCredentials { UserName = "admin", Password = Secret },
+                new SessionCredentials { UserName = "admin", Password = Secret.From(Plaintext) },
                 s =>
                 {
                     s.UserName = "stored-user";
@@ -297,7 +299,7 @@ public class SessionCredentialsTests
         // stored one, so the stored one is what should be sent.
         IReadOnlyList<RdpSettingWrite> plan = RdpSettingsMapper.Plan(
             RequestFor(
-                new SessionCredentials { Password = Secret },
+                new SessionCredentials { Password = Secret.From(Plaintext) },
                 s => s.UserName = "stored-user"));
 
         Assert.Equal("stored-user", Named(plan, "UserName"));

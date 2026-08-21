@@ -112,6 +112,9 @@ public sealed class CredentialVault
 
         SecretUnprotectResult opened = _protector.Unprotect(profile.ProtectedPassword);
 
+        // The password comes out of the store as bytes and goes into the
+        // sign-in as bytes. No string is made on this path at all, which is
+        // the read half of M3-03.
         if (!opened.IsSuccess || opened.Secret is not { } password)
         {
             return new CredentialResolution
@@ -138,16 +141,27 @@ public sealed class CredentialVault
 
     /// <summary>
     /// Protects <paramref name="password"/> and stores it on the profile.
+    ///
+    /// <para>
+    /// The secret is borrowed, not taken: this does not erase it, because the
+    /// caller may still need it to connect with. Erasing is the caller's to do
+    /// when it is finished (M3-03).
+    /// </para>
     /// </summary>
     /// <exception cref="SecretProtectionException">
     /// Protection is unavailable or failed. The profile is left untouched, so
     /// a password that was already saved survives a failed attempt to replace
     /// it.
     /// </exception>
-    public void SavePassword(CredentialProfile profile, string password)
+    public void SavePassword(CredentialProfile profile, Secret password)
     {
         ArgumentNullException.ThrowIfNull(profile);
-        ArgumentException.ThrowIfNullOrEmpty(password);
+        ArgumentNullException.ThrowIfNull(password);
+
+        if (password.IsEmpty)
+        {
+            throw new ArgumentException("There is no password here to save.", nameof(password));
+        }
 
         // Protected first, assigned second. The other order leaves the profile
         // holding a half-written value when protection throws.

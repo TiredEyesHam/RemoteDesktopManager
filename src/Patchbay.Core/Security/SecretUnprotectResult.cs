@@ -13,7 +13,7 @@ namespace Patchbay.Core.Security;
 /// </summary>
 public sealed record SecretUnprotectResult
 {
-    private SecretUnprotectResult(SecretUnprotectStatus status, string? secret)
+    private SecretUnprotectResult(SecretUnprotectStatus status, Secret? secret)
     {
         Status = status;
         Secret = secret;
@@ -23,13 +23,17 @@ public sealed record SecretUnprotectResult
     public SecretUnprotectStatus Status { get; }
 
     /// <summary>
-    /// The secret, or null when there is none. Lives as long as whoever asked
-    /// for it holds it — shortening that is <c>M3-03</c>'s job, and it cannot
-    /// be abolished, because the RDP control takes its password as a BSTR and
-    /// so cleartext exists in managed memory at connect time whatever this
-    /// returns.
+    /// The secret, or null when there is none.
+    ///
+    /// <para>
+    /// Owned by whoever asked for it, and erasable when they are done with it
+    /// (M3-03). It arrives without a <see cref="string"/> ever having been
+    /// made for it, which is the whole point of the type: a decoded password
+    /// that reached a string once would stay legible in the heap for the rest
+    /// of the run.
+    /// </para>
     /// </summary>
-    public string? Secret { get; }
+    public Secret? Secret { get; }
 
     /// <summary>Whether there is a secret to use.</summary>
     public bool IsSuccess => Status == SecretUnprotectStatus.Unprotected;
@@ -67,7 +71,7 @@ public sealed record SecretUnprotectResult
     };
 
     /// <summary>A secret that was read back.</summary>
-    public static SecretUnprotectResult Success(string secret)
+    public static SecretUnprotectResult Success(Secret secret)
     {
         ArgumentNullException.ThrowIfNull(secret);
         return new SecretUnprotectResult(SecretUnprotectStatus.Unprotected, secret);

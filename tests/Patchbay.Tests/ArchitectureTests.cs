@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.Versioning;
 using Patchbay.Core;
 using Patchbay.Core.Diagnostics;
+using Patchbay.Core.Security;
 
 namespace Patchbay.Tests;
 
@@ -73,19 +74,30 @@ public class ArchitectureTests
 
         foreach (Type type in Core.GetTypes().Where(t => t.IsClass && !t.IsAbstract))
         {
-            bool holdsOne = type
-                .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-                .Any(p => (p.PropertyType == typeof(string) || p.PropertyType == typeof(byte[]))
-                    && SecretNames.LooksLikeSecret(p.Name));
+            PropertyInfo[] properties = type.GetProperties(
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
-            if (holdsOne)
+            // Plaintext in a shape that prints itself. These are the dangerous
+            // ones and they are the ones that need an override.
+            bool holdsPlaintext = properties.Any(p =>
+                (p.PropertyType == typeof(string) || p.PropertyType == typeof(byte[]))
+                && SecretNames.LooksLikeSecret(p.Name));
+
+            // A Secret is safe in a generated ToString by construction, since
+            // its own prints a mask (M3-03). Counted, so that moving a
+            // password onto one does not quietly shrink what this examines.
+            bool holdsSecret = properties.Any(p => p.PropertyType == typeof(Secret));
+
+            if (!holdsPlaintext && !holdsSecret)
             {
-                examined++;
+                continue;
+            }
 
-                if (!SecretRedactingPolicy.PrintsItself(type))
-                {
-                    offenders.Add(type.Name);
-                }
+            examined++;
+
+            if (holdsPlaintext && !SecretRedactingPolicy.PrintsItself(type))
+            {
+                offenders.Add(type.Name);
             }
         }
 

@@ -1,3 +1,4 @@
+using Patchbay.Core.Security;
 using Patchbay.Core.Sessions;
 using Patchbay.Rdp.Interop;
 
@@ -79,7 +80,16 @@ public static class RdpSettingsApplier
 
             try
             {
-                RdpDispatch.Set(target, name, write.Value);
+                // The one place a password becomes a string (M3-03), and as
+                // late as it is possible to leave it. The control takes a
+                // BSTR, so the marshaller needs a string and no amount of
+                // care at this layer removes that; what this does is keep the
+                // string to a single statement instead of the life of the
+                // plan, and keep the call to reveal it somewhere it is
+                // obvious why it is there.
+                object value = write.Value is Secret secret ? secret.RevealAsString() : write.Value;
+
+                RdpDispatch.Set(target, name, value);
 
                 return new RdpSettingReport
                 {

@@ -1,3 +1,4 @@
+using Patchbay.Core.Security;
 using System.Globalization;
 using Patchbay.Core.Diagnostics;
 using Patchbay.Core.Sessions;
@@ -59,7 +60,7 @@ public class LogRedactionTests
     {
         UserName = "ada",
         Domain = "CONTOSO",
-        Password = Password,
+        Password = Secret.From(Password),
     };
 
     /// <summary>A record with a secret and no override, which is the hole this closes.</summary>

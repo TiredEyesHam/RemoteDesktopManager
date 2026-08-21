@@ -29,9 +29,16 @@ public abstract class SecretProtector : ISecretProtector
     public virtual bool IsAvailable => true;
 
     /// <inheritdoc />
-    public string Protect(string secret)
+    public string Protect(Secret secret)
     {
-        ArgumentException.ThrowIfNullOrEmpty(secret);
+        ArgumentNullException.ThrowIfNull(secret);
+
+        if (secret.IsEmpty)
+        {
+            throw new ArgumentException(
+                "There is no password here to protect.",
+                nameof(secret));
+        }
 
         if (!IsAvailable)
         {
@@ -40,9 +47,13 @@ public abstract class SecretProtector : ISecretProtector
                 + "nowhere safe to put this password.");
         }
 
-        byte[] payload = ProtectCore(secret);
+        byte[]? payload = null;
 
-        return SecretEnvelope.Create(Scheme, payload).ToString();
+        // The bytes are lent for the length of the call and not handed over,
+        // so a protector cannot keep the plaintext by accident (M3-03).
+        secret.Reveal(this, (utf8, self) => payload = self.ProtectCore(utf8));
+
+        return SecretEnvelope.Create(Scheme, payload!).ToString();
     }
 
     /// <inheritdoc />
@@ -76,7 +87,7 @@ public abstract class SecretProtector : ISecretProtector
     /// Called only when <see cref="IsAvailable"/>.
     /// </summary>
     /// <exception cref="SecretProtectionException">The platform refused.</exception>
-    protected abstract byte[] ProtectCore(string secret);
+    protected abstract byte[] ProtectCore(ReadOnlySpan<byte> utf8);
 
     /// <summary>
     /// Reads a payload this protector wrote. Returns

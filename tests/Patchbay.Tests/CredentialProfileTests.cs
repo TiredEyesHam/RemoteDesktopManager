@@ -32,7 +32,7 @@ public class CredentialProfileTests
 
         if (withPassword)
         {
-            vault.SavePassword(profile, Password);
+            vault.SavePassword(profile, Secret.From(Password));
         }
 
         ConnectionDocument document = new();
@@ -170,7 +170,7 @@ public class CredentialProfileTests
         CredentialVault vault = new(new ReversingProtector { Working = false });
         CredentialProfile profile = new() { Name = "Admin" };
 
-        Assert.Throws<SecretProtectionException>(() => vault.SavePassword(profile, Password));
+        Assert.Throws<SecretProtectionException>(() => vault.SavePassword(profile, Secret.From(Password)));
         Assert.Null(profile.ProtectedPassword);
     }
 
@@ -178,12 +178,12 @@ public class CredentialProfileTests
     public void A_failed_save_leaves_the_previous_password_alone()
     {
         CredentialProfile profile = new() { Name = "Admin" };
-        Vault().SavePassword(profile, Password);
+        Vault().SavePassword(profile, Secret.From(Password));
         string? saved = profile.ProtectedPassword;
 
         CredentialVault broken = new(new ReversingProtector { Working = false });
 
-        Assert.Throws<SecretProtectionException>(() => broken.SavePassword(profile, "new-one"));
+        Assert.Throws<SecretProtectionException>(() => broken.SavePassword(profile, Secret.From("new-one")));
         Assert.Equal(saved, profile.ProtectedPassword);
     }
 
@@ -216,7 +216,7 @@ public class CredentialProfileTests
         Assert.Equal(CredentialResolutionStatus.Resolved, resolved.Status);
         Assert.Equal("svc-deploy", resolved.Credentials.UserName);
         Assert.Equal("CORP", resolved.Credentials.Domain);
-        Assert.Equal(Password, resolved.Credentials.Password);
+        Assert.Equal(Password, resolved.Credentials.Password.RevealAsString());
         Assert.True(resolved.IsComplete);
         Assert.Null(resolved.Notice);
     }
@@ -370,7 +370,9 @@ public class CredentialProfileTests
         Assert.Equal("Domain admin", back.Name);
         Assert.Equal("svc-deploy", back.UserName);
         Assert.Equal(profile.ProtectedPassword, back.ProtectedPassword);
-        Assert.Equal(Password, vault.Resolve(reloaded, Using(profile.Id)).Credentials.Password);
+        Assert.Equal(
+            Password,
+            vault.Resolve(reloaded, Using(profile.Id)).Credentials.Password.RevealAsString());
     }
 
     [Fact]
@@ -412,9 +414,9 @@ public class CredentialProfileTests
 
         public override bool IsAvailable => Working;
 
-        protected override byte[] ProtectCore(string secret)
+        protected override byte[] ProtectCore(ReadOnlySpan<byte> utf8)
         {
-            byte[] bytes = Encoding.UTF8.GetBytes(secret);
+            byte[] bytes = utf8.ToArray();
             Array.Reverse(bytes);
             return bytes;
         }
@@ -428,7 +430,7 @@ public class CredentialProfileTests
 
             byte[] bytes = payload.ToArray();
             Array.Reverse(bytes);
-            return SecretUnprotectResult.Success(Encoding.UTF8.GetString(bytes));
+            return SecretUnprotectResult.Success(Secret.FromUtf8(bytes));
         }
     }
 }

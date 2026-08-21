@@ -216,7 +216,11 @@ public sealed partial class CredentialManagerViewModel : ObservableObject
             return;
         }
 
-        string password = NewPassword;
+        // Erased on the way out (M3-03). Nothing here connects with it, so
+        // this really is the end of the password's life inside Patchbay —
+        // apart from the string WPF handed over, which is not ours to clear.
+        using Secret password = Secret.From(NewPassword);
+
         NewPassword = string.Empty;
 
         try

@@ -11,7 +11,7 @@ setting inheritance, tabbed sessions, and nothing else in the way.
 > hosted and tabbed, driven by the full settings surface, and it reconnects
 > itself when a link drops. It is not yet something to run day to day: there is
 > no logging, no installer and no release.
-> 56 of the 122 items planned for v1 are done — see
+> 57 of the 122 items planned for v1 are done — see
 > [`docs/BACKLOG.md`](docs/BACKLOG.md), where every box is ticked with a note on
 > what was actually verified.
 
@@ -79,8 +79,11 @@ They are gitignored by default — do not commit one.
 
 Importers parse untrusted XML. RDCMan was pulled in 2020 over an XXE in exactly
 that code path, so every importer prohibits DTD processing and runs with
-`XmlResolver` set to null. If you are changing an importer, read the threat model
-first.
+`XmlResolver` set to null.
+
+[`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) sets out what is protected, what
+is not, and the gaps that are still open. Read it before changing an importer,
+adding a store, or putting anything on the clipboard.
 
 Report anything sensitive privately rather than opening an issue.
 

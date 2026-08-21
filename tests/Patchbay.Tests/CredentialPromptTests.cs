@@ -102,7 +102,7 @@ public class CredentialPromptTests
     {
         // A panel that forgets to hide the box must not be able to promise
         // something that will not happen (M3-02).
-        CredentialPrompt prompt = AfterRefusal(canSave: false) ;
+        CredentialPrompt prompt = AfterRefusal(canSave: false);
 
         prompt.SavePassword = true;
 

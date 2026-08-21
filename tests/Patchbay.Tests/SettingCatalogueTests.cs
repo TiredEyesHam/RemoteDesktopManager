@@ -95,7 +95,7 @@ public class SettingCatalogueTests
         // is worse than no control at all. It is a picker now (M3-10), so the
         // Hidden kind is unused and this holds it to that until something
         // needs it again.
-        Assert.Empty(SettingCatalogue.All.Where(d => d.Kind is SettingKind.Hidden));
+        Assert.DoesNotContain(SettingCatalogue.All, d => d.Kind is SettingKind.Hidden);
     }
 
     [Fact]

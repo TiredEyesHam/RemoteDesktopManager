@@ -136,8 +136,16 @@ Milestones M0–M5 and M7 are v1. M6 is deliberately held to v1.1 — see the no
   Setting a password is one-way and deliberately so: it can be replaced or forgotten, and never read back. That is not an oversight to fix later. A manager that can display stored passwords is a manager that will be asked to, by whoever is standing behind the person using it. The box is a `PasswordBox` pushed across in code-behind for the same reason as `M3-06`'s, and it is emptied whether the save worked or not. Where data protection does not work at all the whole password half is hidden rather than shown and refused (M3-02).
 
   792 tests. Not here: reordering the list, and any warning before Delete — the count is on every row instead, which is the fact somebody wants before pressing it rather than after
-- [ ] `M3-11` Threat model doc: at-rest, in-memory, import parsing, clipboard — **M** `[sec]`
-- [ ] `M3-12` Security review of all importers before import ships — **M** `[sec]` — `.rdg` reviewed and gated: XXE, out-of-band parameter entity, external DTD, entity expansion and nesting all covered by failing-if-broken tests. Re-run for each new importer.
+- [x] `M3-11` Threat model doc: at-rest, in-memory, import parsing, clipboard — **M** `[sec]` — `docs/THREAT-MODEL.md`. Worth doing now rather than at the end, because the credential surface changed in four consecutive items and the reasoning behind each decision was spread across four commit messages and a dozen doc comments.
+
+  Two things it states plainly because everything else follows from them. A saved password is recoverable by design — it has to be, or the session could not use it — so the question is never whether it can be reversed but by whom and where. And Patchbay cannot defend against code running as the signed-in user: data protection serves that user, the control takes a plaintext BSTR, the clipboard is readable by everything on the desktop. Claiming otherwise would be theatre.
+
+  The out-of-scope list is as much of the point as the in-scope one. A local administrator can read another account's DPAPI store, so user scope is not a boundary against them; that is what `M3-07`'s master password is for, and until it exists the honest summary is that saved passwords are protected against the file moving and against nothing else. Backups inherit the same exposure as the document, which is worth knowing before pointing it at a synced folder.
+
+  One claim was turned into a gate rather than left as a sentence. `ArchitectureTests.Anything_holding_a_secret_overrides_ToString` walks `Core` for types with a string property named like a secret and fails if any of them takes the generated `ToString` — which prints every property, and is the likeliest way a password reaches a log file, through a line of code nobody wrote. It counts what it examined too, so renaming a property cannot quietly turn it into a test of the empty set.
+
+  Every other claim was checked against the code rather than remembered: the four `SafeXml` settings, `MaxDepth` at 64, the `pb1:` envelope, the atomic write and five backups, and the importer counting passwords without decrypting one. Linked from the README, and the known gaps are a table naming the item that closes each
+- [ ] `M3-12` Security review of all importers before import ships — **M** `[sec]` — `.rdg` reviewed and gated: XXE, out-of-band parameter entity, external DTD, entity expansion and nesting all covered by failing-if-broken tests. Re-run for each new importer, against `docs/THREAT-MODEL.md` (`M3-11`), which is where the settings and the reasoning are written down.
 
 ## M4 — RDP engine
 

@@ -43,13 +43,23 @@ public sealed record SecretUnprotectResult
     /// unreadable <em>here</em> is still somebody's password somewhere, and
     /// overwriting it because this machine could not open it turns a nuisance
     /// into data loss.
+    ///
+    /// <para>
+    /// <see cref="SecretUnprotectStatus.Missing"/> is in the list even though
+    /// there is demonstrably nothing behind the reference to protect (M3-04).
+    /// A Credential Manager entry can come back — a restored backup, a roaming
+    /// profile that has caught up, a machine somebody is about to go back to —
+    /// and the reference is the only thing that would still know which entry
+    /// it was.
+    /// </para>
     /// </summary>
     public bool ShouldPreserveStoredValue =>
         Status is SecretUnprotectStatus.TooNew
             or SecretUnprotectStatus.WrongScheme
             or SecretUnprotectStatus.Unavailable
             or SecretUnprotectStatus.Unreadable
-            or SecretUnprotectStatus.Locked;
+            or SecretUnprotectStatus.Locked
+            or SecretUnprotectStatus.Missing;
 
     /// <summary>A sentence for the shell to show, or null when nothing needs saying.</summary>
     public string? Notice => Status switch
@@ -70,6 +80,10 @@ public sealed record SecretUnprotectResult
             + "so Patchbay cannot read it here. Enter it again to save a copy for this account.",
         SecretUnprotectStatus.Locked =>
             "This document is locked. Enter its master password to use the passwords saved in it.",
+        SecretUnprotectStatus.Missing =>
+            "This password was saved to Windows Credential Manager and is not there now — either "
+            + "this is a different machine, or the entry has been removed. The reference has been "
+            + "left in place in case it comes back.",
         _ => null,
     };
 

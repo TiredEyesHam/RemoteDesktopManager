@@ -185,7 +185,7 @@ public sealed partial class CredentialManagerViewModel : ObservableObject
             return;
         }
 
-        CredentialDeletion result = CredentialOperations.Delete(_document, row.Id);
+        CredentialDeletion result = CredentialOperations.Delete(_document, row.Id, _vault);
 
         if (!result.Deleted)
         {
@@ -246,7 +246,7 @@ public sealed partial class CredentialManagerViewModel : ObservableObject
             return;
         }
 
-        CredentialVault.ClearPassword(row.Profile);
+        _vault.ClearPassword(row.Profile);
         row.RefreshPassword();
         _changed();
 

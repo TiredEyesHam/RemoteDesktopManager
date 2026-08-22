@@ -128,7 +128,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         IConnectionStore store,
         Func<string?>? chooseImportFile = null,
         IRemoteSessionHost? sessionHost = null,
-        ISecretProtector? secretProtector = null,
+        IReadOnlyList<ISecretProtector>? secretStores = null,
         ISystemClipboard? clipboard = null)
     {
         ArgumentNullException.ThrowIfNull(store);
@@ -136,14 +136,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         _store = store;
         _chooseImportFile = chooseImportFile;
 
-        // The document's protection, whichever it is using (M3-07). Everything
-        // downstream holds this rather than a store, so a document behind a
-        // master password and one behind DPAPI are the same thing to it.
+        // The document's protection, whichever it is using (M3-07, M3-04).
+        // Everything downstream holds this rather than a store, so a document
+        // behind a master password, one in Windows Credential Manager and one
+        // behind DPAPI are the same thing to it.
         //
         // Defaults to the protector that refuses on an account with no working
         // data protection, so a test does not have to reach real DPAPI to
         // build a shell (M3-01).
-        _protection = new DocumentProtection(secretProtector);
+        _protection = new DocumentProtection(secretStores is null ? [] : [.. secretStores]);
         _credentials = new CredentialVault(_protection);
 
         // And the same for the clipboard, which is a WPF type (M3-09).
@@ -227,6 +228,14 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
 
     /// <summary>Whether the document is behind a master password nobody has typed (M3-07).</summary>
     public bool IsDocumentLocked => _protection.NeedsUnlocking;
+
+    /// <summary>
+    /// Which store this document's saved passwords go to (M3-04). Logged at
+    /// startup, because "the password will not save" and "the password saved
+    /// and cannot be read" are different problems and this is the line that
+    /// tells them apart.
+    /// </summary>
+    public string SecretStoreScheme => _protection.Scheme;
 
     /// <summary>Opens the saved sign-in manager, closing any editor first.</summary>
     [RelayCommand]
@@ -357,6 +366,15 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(IsDocumentLocked));
             ManageSecurity();
             Status = $"Opened {FileName} · locked";
+        }
+        else if (_protection.NamesAnUnknownStore)
+        {
+            // The same reasoning one step down (M3-04). This document keeps
+            // its passwords somewhere this build has never heard of, so
+            // everything works except saving a password — and that would fail
+            // later, with a message about a store nobody has mentioned yet.
+            ManageSecurity();
+            Status = $"Opened {FileName} · no password store";
         }
     }
 

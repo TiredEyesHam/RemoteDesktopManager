@@ -59,4 +59,27 @@ public interface ISecretProtector
     /// back as a <see cref="SecretUnprotectResult"/>.
     /// </summary>
     SecretUnprotectResult Unprotect(string? storedText);
+
+    /// <summary>
+    /// Releases whatever <see cref="Protect"/> reserved outside the document,
+    /// now that the document has stopped pointing at it (M3-04).
+    ///
+    /// <para>
+    /// Nothing for a store that encrypts, and the whole of the difference for
+    /// a store that refers. A DPAPI blob is the secret, so deleting the field
+    /// deletes it; a Credential Manager envelope is a name, and deleting the
+    /// field leaves the password sitting in Windows with nothing left in
+    /// Patchbay that knows it is there. Every place that stops using a stored
+    /// secret has to say so, which is why this is on the interface rather than
+    /// on the one implementation that needs it.
+    /// </para>
+    ///
+    /// <para>
+    /// Never throws, and does nothing at all for an envelope belonging to
+    /// another scheme. Being asked to forget something twice, or to forget
+    /// something that was never there, are both ordinary — a document restored
+    /// from a backup refers to entries a later one already released.
+    /// </para>
+    /// </summary>
+    void Forget(string? storedText);
 }

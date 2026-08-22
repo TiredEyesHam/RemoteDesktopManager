@@ -1,4 +1,5 @@
 using Patchbay.Core.Model;
+using Patchbay.Core.Security;
 
 namespace Patchbay.Core.Editing;
 
@@ -16,10 +17,20 @@ public readonly record struct CredentialDeletion(bool Deleted, int Detached);
 /// <summary>
 /// Adding, copying and removing saved sign-ins (M3-10).
 ///
-/// Separate from <c>CredentialVault</c> because none of this touches a secret.
-/// The vault owns the protector and is the only thing that can read or write a
-/// password; this owns the list, and could not decrypt anything if it wanted
-/// to.
+/// Separate from <see cref="CredentialVault"/> because none of this touches a
+/// secret. The vault owns the protector and is the only thing that can read or
+/// write a password; this owns the list, and could not decrypt anything if it
+/// wanted to.
+///
+/// <para>
+/// Deleting is the one that has to ask, since M3-04. Removing a profile whose
+/// password lives in the document removes the password with it; removing one
+/// whose password lives in Windows Credential Manager leaves it there for
+/// ever, with nothing in Patchbay that still knows it exists. So the deletion
+/// hands the profile to the vault to be released first, rather than reaching
+/// past it — which keeps the rule intact and is why the vault is a parameter
+/// rather than something this class went and found.
+/// </para>
 /// </summary>
 public static class CredentialOperations
 {
@@ -95,8 +106,8 @@ public static class CredentialOperations
     }
 
     /// <summary>
-    /// Removes a profile and puts every connection that named it back to
-    /// asking each time.
+    /// Removes a profile, releases its saved password, and puts every
+    /// connection that named it back to asking each time.
     ///
     /// <para>
     /// Detaching rather than leaving the reference dangling, which is the
@@ -116,9 +127,19 @@ public static class CredentialOperations
     /// problem.
     /// </para>
     /// </summary>
-    public static CredentialDeletion Delete(ConnectionDocument document, Guid id)
+    /// <param name="vault">
+    /// Asked to release the profile's saved password before the profile goes.
+    /// Required rather than optional, because the caller that forgets it is
+    /// the caller that leaves a password in Windows with nothing pointing at
+    /// it, and nothing about the result would look wrong.
+    /// </param>
+    public static CredentialDeletion Delete(
+        ConnectionDocument document,
+        Guid id,
+        CredentialVault vault)
     {
         ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(vault);
 
         if (document.FindCredential(id) is not { } profile)
         {
@@ -139,6 +160,7 @@ public static class CredentialOperations
             detached++;
         }
 
+        vault.ClearPassword(profile);
         document.Credentials.Remove(profile);
 
         return new CredentialDeletion(Deleted: true, Detached: detached);

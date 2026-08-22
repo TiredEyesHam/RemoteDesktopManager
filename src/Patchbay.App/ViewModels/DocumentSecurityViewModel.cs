@@ -1,5 +1,7 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Patchbay.App.Security;
 using Patchbay.Core.Model;
 using Patchbay.Core.Security;
 using Patchbay.Core.Storage;
@@ -7,14 +9,22 @@ using Patchbay.Core.Storage;
 namespace Patchbay.App.ViewModels;
 
 /// <summary>
-/// The document's master password, as a panel (M3-07).
+/// Where a document keeps its saved passwords, as a panel (M3-07, M3-04).
 ///
 /// <para>
-/// One panel for three states, because they are three moments in one thing
-/// rather than three features. A document with no master password offers to
-/// take one; a locked one asks for it; an open one offers to change or remove
-/// it. Splitting them across separate screens would mean somebody looking for
-/// "the master password" finding the wrong one of three.
+/// One panel for three states of the master password, because they are three
+/// moments in one thing rather than three features. A document with none
+/// offers to take one; a locked one asks for it; an open one offers to change
+/// or remove it. Splitting them across separate screens would mean somebody
+/// looking for "the master password" finding the wrong one of three.
+/// </para>
+///
+/// <para>
+/// And one panel for the choice of Windows store as well (M3-04), because it
+/// is the same question asked at a lower stake — where do the saved passwords
+/// live, and what does a copy of this file carry with it. Two screens would
+/// mean somebody turning on a master password without ever seeing that the
+/// document had a store to choose, and the other way round.
 /// </para>
 ///
 /// <para>
@@ -52,6 +62,8 @@ public sealed partial class DocumentSecurityViewModel : ObservableObject
         _document = document;
         _store = store;
         _changed = changed;
+
+        Refresh();
     }
 
     /// <summary>
@@ -86,6 +98,10 @@ public sealed partial class DocumentSecurityViewModel : ObservableObject
     /// </summary>
     public string StateText => _protection switch
     {
+        { IsProtected: false, NamesAnUnknownStore: true } =>
+            "This document keeps its saved passwords somewhere this version of Patchbay does "
+            + "not have. The ones already saved are untouched; new ones cannot be saved until "
+            + "a store below is chosen.",
         { IsProtected: false, CanUseMachineProtection: true } =>
             "Saved passwords are protected for this Windows account on this machine. Anyone "
             + "signed in as you, and any local administrator, can read them.",
@@ -169,7 +185,8 @@ public sealed partial class DocumentSecurityViewModel : ObservableObject
     /// to put on a share.
     /// </para>
     /// </summary>
-    public bool ShowOlderCopies => _protection.IsProtected && _store.OlderCopies > 0;
+    public bool ShowOlderCopies =>
+        (_protection.IsProtected || _protection.UsesExternalStore) && _store.OlderCopies > 0;
 
     /// <summary>What there is to say about them.</summary>
     public string OlderCopiesText
@@ -178,18 +195,66 @@ public sealed partial class DocumentSecurityViewModel : ObservableObject
         {
             int copies = _store.OlderCopies;
 
+            // Two reasons and one sentence each, because the remedy is the
+            // same and the thing being warned about is not. A master password
+            // leaves the old copies readable without it; moving the passwords
+            // out to Windows leaves the old copies still carrying them.
+            string carried = _protection.IsProtected
+                ? "the sign-ins saved in {0} can still be read without the master password."
+                : "{1} still carry the sign-ins that have since been moved out to Windows.";
+
             return copies == 1
-                ? "One older copy of this document is kept beside it. It was written before the "
-                    + "master password, and the sign-ins saved in it can still be read without one."
-                : $"{copies} older copies of this document are kept beside it. They were written "
-                    + "before the master password, and the sign-ins saved in them can still be "
-                    + "read without one.";
+                ? "One older copy of this document is kept beside it, written before the change, and "
+                    + string.Format(CultureInfo.CurrentCulture, carried, "it", "it does")
+                : $"{copies} older copies of this document are kept beside it, written before the "
+                    + "change, and "
+                    + string.Format(CultureInfo.CurrentCulture, carried, "them", "they do");
         }
     }
 
     /// <summary>What the button offers, which has to name what it destroys.</summary>
     public string ForgetOlderCopiesLabel =>
         _store.OlderCopies == 1 ? "Delete the older copy" : "Delete the older copies";
+
+    /// <summary>
+    /// The Windows stores this build has, with the one in use marked (M3-04).
+    /// Rebuilt rather than mutated, because a store's availability is
+    /// established by trying it and can be answered late.
+    /// </summary>
+    public IReadOnlyList<SecretStoreOption> Stores { get; private set; } = [];
+
+    /// <summary>
+    /// Whether choosing a store is worth showing. Hidden behind a master
+    /// password, which is what protects the saved passwords while it is on —
+    /// recording a preference that changes nothing today is how somebody comes
+    /// to believe their passwords moved.
+    /// </summary>
+    public bool CanChooseStore =>
+        !_protection.IsProtected && (Stores.Count > 1 || _protection.NamesAnUnknownStore);
+
+    /// <summary>
+    /// Whether Windows is holding entries for this document, which is worth
+    /// saying whether or not any of them are stale: it is the one place a
+    /// person can see that Patchbay has put something outside its own file.
+    /// </summary>
+    public bool ShowExternalEntries => _protection.ExternalSecretCount > 0;
+
+    /// <summary>What there is to say about them.</summary>
+    public string ExternalEntriesText
+    {
+        get
+        {
+            int entries = _protection.ExternalSecretCount;
+
+            return entries == 1
+                ? "Windows Credential Manager is holding one entry for this document. It is "
+                    + "listed there as a generic credential and can be seen in the Windows "
+                    + "control panel."
+                : $"Windows Credential Manager is holding {entries} entries for this document. "
+                    + "They are listed there as generic credentials and can be seen in the "
+                    + "Windows control panel.";
+        }
+    }
 
     /// <summary>What just happened, or null before anything has.</summary>
     [ObservableProperty]
@@ -237,6 +302,60 @@ public sealed partial class DocumentSecurityViewModel : ObservableObject
     private void StopProtecting()
     {
         Apply(() => _protection.Remove(_document, Password));
+    }
+
+    /// <summary>
+    /// Moves this document's saved passwords to another Windows store
+    /// (M3-04), and says how many came.
+    /// </summary>
+    [RelayCommand]
+    private void UseStore(string? scheme)
+    {
+        if (string.IsNullOrEmpty(scheme))
+        {
+            return;
+        }
+
+        SecretStoreChange result = _protection.UseMachineStore(_document, scheme);
+
+        Notice = result.Notice;
+
+        if (result.ChangedTheDocument)
+        {
+            // Where the next password goes is in the document, and so are the
+            // references to everything that just moved. A move that is not
+            // written is a move that leaves the file pointing at entries under
+            // the scheme it used to use.
+            _changed();
+        }
+
+        Refresh();
+    }
+
+    /// <summary>
+    /// Deletes the entries Windows is holding for this document that nothing
+    /// in it refers to any more.
+    ///
+    /// <para>
+    /// Scoped to this document and offered rather than done, for the same
+    /// reason as the older copies below: a person may have more than one
+    /// connection file, and an entry that looks orphaned from here is a live
+    /// password somewhere else.
+    /// </para>
+    /// </summary>
+    [RelayCommand]
+    private void ForgetOrphans()
+    {
+        int gone = _protection.ForgetOrphanedSecrets(_document);
+
+        Notice = gone switch
+        {
+            0 => "Every entry Windows is holding for this document is still in use.",
+            1 => "One entry nothing referred to has been deleted from Windows.",
+            _ => $"{gone} entries nothing referred to have been deleted from Windows.",
+        };
+
+        Refresh();
     }
 
     /// <summary>
@@ -309,6 +428,19 @@ public sealed partial class DocumentSecurityViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowOlderCopies));
         OnPropertyChanged(nameof(OlderCopiesText));
         OnPropertyChanged(nameof(ForgetOlderCopiesLabel));
+
+        Stores = [.. _protection.MachineStores.Select(
+            store => new SecretStoreOption(
+                store.Scheme,
+                SecretStoreOption.LabelFor(store.Scheme),
+                SecretStoreOption.DescriptionFor(store.Scheme),
+                store.IsAvailable,
+                string.Equals(store.Scheme, _protection.MachineStoreScheme, StringComparison.Ordinal)))];
+
+        OnPropertyChanged(nameof(Stores));
+        OnPropertyChanged(nameof(CanChooseStore));
+        OnPropertyChanged(nameof(ShowExternalEntries));
+        OnPropertyChanged(nameof(ExternalEntriesText));
 
         UnlockCommand.NotifyCanExecuteChanged();
         ProtectCommand.NotifyCanExecuteChanged();

@@ -166,17 +166,38 @@ public sealed class CredentialVault
         // Protected first, assigned second. The other order leaves the profile
         // holding a half-written value when protection throws.
         string envelope = _protector.Protect(password);
+        string? replaced = profile.ProtectedPassword;
 
         profile.ProtectedPassword = envelope;
+
+        // Only once the new one is safely in place. A store that keeps the
+        // password outside the document does not lose it when the field
+        // holding its name is overwritten, so replacing a password leaves the
+        // old one in Windows unless somebody says otherwise (M3-04) — and
+        // saying so before the replacement had landed would be a way to end up
+        // with neither.
+        _protector.Forget(replaced);
     }
 
     /// <summary>
     /// Forgets the saved password, leaving the account name and domain alone.
     /// Safe to call on a profile that has none.
+    ///
+    /// <para>
+    /// An instance method since M3-04, and it had to become one. Clearing the
+    /// field is the whole of forgetting a password that lives in the document
+    /// and half of forgetting one that does not, so this needs the protector
+    /// to tell.
+    /// </para>
     /// </summary>
-    public static void ClearPassword(CredentialProfile profile)
+    public void ClearPassword(CredentialProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
+
+        string? forgotten = profile.ProtectedPassword;
+
         profile.ProtectedPassword = null;
+
+        _protector.Forget(forgotten);
     }
 }

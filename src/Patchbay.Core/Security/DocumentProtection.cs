@@ -4,10 +4,20 @@ using Patchbay.Core.Model;
 namespace Patchbay.Core.Security;
 
 /// <summary>
-/// A document's protection, whichever it is using (M3-07). One of these per
-/// open document, and it is the <see cref="ISecretProtector"/> everything else
-/// holds — <see cref="CredentialVault"/> included, which goes on not knowing
-/// which store is behind it.
+/// A document's protection, whichever it is using (M3-07, M3-04). One of these
+/// per open document, and it is the <see cref="ISecretProtector"/> everything
+/// else holds — <see cref="CredentialVault"/> included, which goes on not
+/// knowing which store is behind it.
+///
+/// <para>
+/// <b>Three choices, not two.</b> A document keeps its saved passwords in
+/// Windows data protection, in Windows Credential Manager, or behind its own
+/// master password. The first two are machine stores and interchangeable from
+/// here; the third is not a store on this machine at all, which is the whole
+/// of what it buys and the whole of what it costs. Choosing between the
+/// machine stores is <see cref="UseMachineStore"/>; the master password sits
+/// over whichever is chosen and takes precedence while it is on.
+/// </para>
 ///
 /// <para>
 /// <b>Why routing exists at all.</b> A document holds blobs from more than one
@@ -54,19 +64,30 @@ public sealed class DocumentProtection : ISecretProtector, IDisposable
     /// </summary>
     public const int MinimumPasswordLength = 8;
 
-    private readonly ISecretProtector _machine;
+    private readonly ISecretProtector[] _stores;
     private readonly MasterPasswordProtector _master = new();
 
+    private ISecretProtector _machine;
     private MasterKeyRecord? _record;
 
-    /// <param name="machine">
-    /// The machine-held store — DPAPI in the application, and nothing in a
-    /// test. Defaults to the protector that refuses, so that
+    /// <param name="machineStores">
+    /// The machine-held stores this build has, in the order they should be
+    /// offered — Windows data protection and Windows Credential Manager in the
+    /// application (M3-02, M3-04), and none in a test. The first is what a
+    /// document that has never said otherwise uses.
+    ///
+    /// <para>
+    /// Given none, everything falls to the protector that refuses, so
     /// <c>Core</c> can be exercised without a platform under it.
+    /// </para>
     /// </param>
-    public DocumentProtection(ISecretProtector? machine = null)
+    public DocumentProtection(params ISecretProtector[]? machineStores)
     {
-        _machine = machine ?? UnavailableSecretProtector.Instance;
+        _stores = machineStores is { Length: > 0 }
+            ? [.. machineStores]
+            : [UnavailableSecretProtector.Instance];
+
+        _machine = _stores[0];
     }
 
     /// <summary>Whether this document has a master password at all.</summary>
@@ -96,9 +117,46 @@ public sealed class DocumentProtection : ISecretProtector, IDisposable
     public bool IsAvailable => IsProtected ? IsUnlocked : _machine.IsAvailable;
 
     /// <summary>
-    /// Adopts a freshly loaded document's master key, locked. Any previous
-    /// document's key is erased first, because two documents open in
-    /// succession must not share one.
+    /// Which machine stores this build has, in the order to offer them. The
+    /// panel reads <see cref="ISecretProtector.Scheme"/> and
+    /// <see cref="ISecretProtector.IsAvailable"/> off these; it does not need
+    /// to know what any of them is.
+    /// </summary>
+    public IReadOnlyList<ISecretProtector> MachineStores => _stores;
+
+    /// <summary>
+    /// Which machine store new passwords go to when there is no master
+    /// password — and where they would go if one were removed.
+    /// </summary>
+    public string MachineStoreScheme => _machine.Scheme;
+
+    /// <summary>
+    /// Whether this document names a store this build does not have (M3-04) —
+    /// a file written by a later Patchbay, or by one built with a store this
+    /// one was not. Nothing can be saved until another is chosen, and the
+    /// difference between that and a broken machine is worth a sentence.
+    /// </summary>
+    public bool NamesAnUnknownStore { get; private set; }
+
+    /// <summary>
+    /// Whether this document's saved passwords are kept outside the file
+    /// (M3-04). What it changes for a caller is what a copy of the document
+    /// contains: with an external store, nothing.
+    /// </summary>
+    public bool UsesExternalStore => _machine is IExternalSecretStore;
+
+    /// <summary>
+    /// How many entries the machine's external stores are holding for this
+    /// document (M3-04), referred to or not. Zero for a document that keeps
+    /// its passwords in itself, which is every document until somebody says
+    /// otherwise.
+    /// </summary>
+    public int ExternalSecretCount => _stores.OfType<IExternalSecretStore>().Sum(store => store.Count);
+
+    /// <summary>
+    /// Adopts a freshly loaded document's master key, locked, and its choice
+    /// of machine store. Any previous document's key is erased first, because
+    /// two documents open in succession must not share one.
     /// </summary>
     public void Open(ConnectionDocument document)
     {
@@ -106,6 +164,114 @@ public sealed class DocumentProtection : ISecretProtector, IDisposable
 
         Lock();
         _record = document.MasterKey;
+
+        // A document that says nothing gets the first store offered. One that
+        // names a store this build does not have gets none — not the first
+        // one, which would quietly write the next password somewhere other
+        // than where somebody chose (M3-02) and would look exactly like it
+        // worked.
+        _machine = document.CredentialStore is null
+            ? _stores[0]
+            : Find(document.CredentialStore) ?? UnavailableSecretProtector.Instance;
+
+        NamesAnUnknownStore =
+            document.CredentialStore is not null && Find(document.CredentialStore) is null;
+
+        // Every entry written from here on belongs to this document, and a
+        // sweep will not see past it. Patchbay opens one document at a time
+        // and a person may have several; a store that did not know which one
+        // it was serving would offer to delete the other one's passwords.
+        foreach (IExternalSecretStore store in _stores.OfType<IExternalSecretStore>())
+        {
+            store.Open(document.Id);
+        }
+    }
+
+    /// <summary>
+    /// Chooses where this document keeps its saved passwords, and moves the
+    /// ones it can read (M3-04).
+    ///
+    /// <para>
+    /// The same staged re-protection as <see cref="Set"/> and
+    /// <see cref="Remove"/>, and the same rule about what does not move: a
+    /// password this Windows account cannot read stays exactly where it is.
+    /// The one thing this does that they do not is release what it left
+    /// behind — a Credential Manager entry whose reference has just been
+    /// overwritten is not deleted by overwriting it.
+    /// </para>
+    /// </summary>
+    public SecretStoreChange UseMachineStore(ConnectionDocument document, string scheme)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentException.ThrowIfNullOrWhiteSpace(scheme);
+
+        if (IsProtected)
+        {
+            // Nothing here is wrong exactly — the preference would be honoured
+            // if the master password came off — but silently recording a
+            // choice that changes nothing today is how somebody comes to
+            // believe their passwords moved.
+            return SecretStoreChange.Failed(SecretStoreChangeStatus.Locked);
+        }
+
+        if (Find(scheme) is not { } store)
+        {
+            return SecretStoreChange.Failed(SecretStoreChangeStatus.NoSuchStore);
+        }
+
+        if (ReferenceEquals(store, _machine)
+            && string.Equals(document.CredentialStore, scheme, StringComparison.Ordinal))
+        {
+            return SecretStoreChange.Failed(SecretStoreChangeStatus.AlreadyThere);
+        }
+
+        if (!store.IsAvailable)
+        {
+            return SecretStoreChange.Failed(SecretStoreChangeStatus.Unavailable);
+        }
+
+        int moved;
+        int leftAlone;
+
+        try
+        {
+            (moved, leftAlone) = Reprotect(document.Credentials, store);
+        }
+        catch (SecretProtectionException)
+        {
+            // Available and then refusing anyway — a policy that changed, a
+            // full store, a password longer than the store will take. Nothing
+            // has been written, because reading comes before writing, so this
+            // is a refusal rather than a half-finished move.
+            return SecretStoreChange.Failed(SecretStoreChangeStatus.Unavailable);
+        }
+
+        _machine = store;
+        document.CredentialStore = scheme;
+        NamesAnUnknownStore = false;
+
+        return SecretStoreChange.Done(moved, leftAlone);
+    }
+
+    /// <summary>
+    /// Deletes the entries the machine's external stores hold for this
+    /// document that nothing in it refers to any more, and returns how many
+    /// went (M3-04).
+    ///
+    /// <para>
+    /// Scoped to this document twice over: the stores were opened against it,
+    /// and what is still wanted comes from its own profiles. A document open
+    /// somewhere else is untouched, which is the whole reason entries carry a
+    /// document with them.
+    /// </para>
+    /// </summary>
+    public int ForgetOrphanedSecrets(ConnectionDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        string?[] inUse = [.. document.Credentials.Select(profile => profile.ProtectedPassword)];
+
+        return _stores.OfType<IExternalSecretStore>().Sum(store => store.ForgetOrphans(inUse));
     }
 
     /// <summary>
@@ -288,9 +454,21 @@ public sealed class DocumentProtection : ISecretProtector, IDisposable
 
         _master.Unlock(key);
 
-        // Nothing to undo if this throws: the record is still on the document
-        // and still correct, so everything that did not move is still readable.
-        (int moved, int leftAlone) = Reprotect(document.Credentials, _machine);
+        int moved;
+        int leftAlone;
+
+        try
+        {
+            (moved, leftAlone) = Reprotect(document.Credentials, _machine);
+        }
+        catch (SecretProtectionException)
+        {
+            // Nothing to undo: the record is still on the document and still
+            // correct, so everything is still readable and still protected.
+            // The machine store said it was available and then refused, which
+            // for the person is the same problem as it not being available.
+            return MasterPasswordChange.Failed(MasterPasswordChangeStatus.NowhereToPutPasswords);
+        }
 
         _record = null;
         document.MasterKey = null;
@@ -328,9 +506,14 @@ public sealed class DocumentProtection : ISecretProtector, IDisposable
             return _master.Unprotect(storedText);
         }
 
-        if (string.Equals(envelope.Scheme, _machine.Scheme, StringComparison.Ordinal))
+        // Every machine store, not just the one being written to. A document
+        // that has moved from one to the other still holds passwords in the
+        // one it left, and they go on being readable — which is what makes
+        // moving something that can be done a few at a time and stopped
+        // halfway without losing anything.
+        if (Find(envelope.Scheme) is { } store)
         {
-            return _machine.Unprotect(storedText);
+            return store.Unprotect(storedText);
         }
 
         // A scheme no protector here answers to — a Credential Manager blob
@@ -340,7 +523,34 @@ public sealed class DocumentProtection : ISecretProtector, IDisposable
     }
 
     /// <inheritdoc />
+    public void Forget(string? storedText)
+    {
+        if (!SecretEnvelope.TryParse(storedText, out SecretEnvelope? envelope)
+            || envelope.Version > SecretEnvelope.CurrentVersion)
+        {
+            return;
+        }
+
+        // Routed exactly like a read, and to a store rather than to the store:
+        // the envelope being released is usually the one just replaced, which
+        // by definition belongs to wherever the document used to write.
+        if (string.Equals(envelope.Scheme, MasterPasswordProtector.SchemeName, StringComparison.Ordinal))
+        {
+            _master.Forget(storedText);
+            return;
+        }
+
+        Find(envelope.Scheme)?.Forget(storedText);
+    }
+
+    /// <inheritdoc />
     public void Dispose() => _master.Dispose();
+
+    private ISecretProtector? Find(string? scheme) =>
+        scheme is null
+            ? null
+            : _stores.FirstOrDefault(
+                store => string.Equals(store.Scheme, scheme, StringComparison.Ordinal));
 
     /// <summary>
     /// Moves every saved password this can read into
@@ -355,12 +565,21 @@ public sealed class DocumentProtection : ISecretProtector, IDisposable
     /// yet at that point. Staging costs one list and removes the whole class
     /// of half-converted file.
     /// </para>
+    ///
+    /// <para>
+    /// Releasing comes last, after every field has been reassigned, and only
+    /// for the ones that moved (M3-04). The order is the point: forgetting a
+    /// Credential Manager entry before the replacement is safely in the
+    /// document would destroy the password if anything in between threw, and
+    /// the ones that did not move still refer to entries that are still
+    /// wanted.
+    /// </para>
     /// </summary>
     private (int Moved, int LeftAlone) Reprotect(
         IEnumerable<CredentialProfile> profiles,
         ISecretProtector into)
     {
-        List<(CredentialProfile Profile, string Envelope)> staged = [];
+        List<(CredentialProfile Profile, string Envelope, string? Released)> staged = [];
         int leftAlone = 0;
 
         foreach (CredentialProfile profile in profiles)
@@ -380,7 +599,7 @@ public sealed class DocumentProtection : ISecretProtector, IDisposable
 
             try
             {
-                staged.Add((profile, into.Protect(password)));
+                staged.Add((profile, into.Protect(password), profile.ProtectedPassword));
             }
             finally
             {
@@ -390,9 +609,14 @@ public sealed class DocumentProtection : ISecretProtector, IDisposable
             }
         }
 
-        foreach ((CredentialProfile profile, string envelope) in staged)
+        foreach ((CredentialProfile profile, string envelope, string? _) in staged)
         {
             profile.ProtectedPassword = envelope;
+        }
+
+        foreach ((CredentialProfile _, string _, string? released) in staged)
+        {
+            Forget(released);
         }
 
         return (staged.Count, leftAlone);

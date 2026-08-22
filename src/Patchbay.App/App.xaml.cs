@@ -72,12 +72,16 @@ public partial class App : Application
 
         // Real data protection here, unlike the view model's default: this is
         // the one place that knows it is running on the signed-in account
-        // rather than in a test (M3-01).
+        // rather than in a test (M3-01). Both machine stores are handed over
+        // whether or not they work, in the order they are offered — a document
+        // that says it keeps its passwords in Credential Manager on a machine
+        // where Credential Manager is off must refuse to save rather than
+        // quietly write them somewhere else (M3-04).
         ShellViewModel shell = new(
             store,
             ChooseRdgFile,
             sessionHost,
-            DpapiSecretProtector.ForCurrentUser(),
+            [DpapiSecretProtector.ForCurrentUser(), new CredentialManagerSecretProtector()],
             new WindowsClipboard());
 
         MainWindow window = new(shell);
@@ -94,8 +98,9 @@ public partial class App : Application
         // (M3-07). No secret goes near this — the fact of a master password is
         // not one, and the redaction policy would not let one through anyway.
         Log.Information(
-            "Document opened {Locked}",
-            shell.IsDocumentLocked ? "locked by a master password" : "unlocked");
+            "Document opened {Locked}, saved passwords kept in {Store}",
+            shell.IsDocumentLocked ? "locked by a master password" : "unlocked",
+            shell.SecretStoreScheme);
     }
 
     /// <summary>

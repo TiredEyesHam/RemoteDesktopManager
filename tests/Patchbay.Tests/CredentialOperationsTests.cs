@@ -1,5 +1,6 @@
 using Patchbay.Core.Editing;
 using Patchbay.Core.Model;
+using Patchbay.Core.Security;
 
 namespace Patchbay.Tests;
 
@@ -10,6 +11,11 @@ namespace Patchbay.Tests;
 /// the list. What it does own is the question nobody wants to answer twice:
 /// what happens to the fifty connections pointing at a profile somebody has
 /// just deleted.
+///
+/// Deleting takes a vault since M3-04, because a profile whose password lives
+/// in Windows rather than in the document has to have it released. These tests
+/// hand over one built on the protector that refuses, which is enough: it can
+/// be asked to forget and there is nothing to forget.
 /// </summary>
 public class CredentialOperationsTests
 {
@@ -109,7 +115,7 @@ public class CredentialOperationsTests
     [Fact]
     public void Deleting_something_that_is_not_there_says_so()
     {
-        CredentialDeletion result = CredentialOperations.Delete(new ConnectionDocument(), Guid.NewGuid());
+        CredentialDeletion result = CredentialOperations.Delete(new ConnectionDocument(), Guid.NewGuid(), Vault);
 
         Assert.False(result.Deleted);
         Assert.Equal(0, result.Detached);
@@ -122,7 +128,7 @@ public class CredentialOperationsTests
         CredentialProfile profile = CredentialOperations.Add(document, "Admin");
         document.Root.Children.Add(Server("web-01"));
 
-        CredentialDeletion result = CredentialOperations.Delete(document, profile.Id);
+        CredentialDeletion result = CredentialOperations.Delete(document, profile.Id, Vault);
 
         Assert.True(result.Deleted);
         Assert.Equal(0, result.Detached);
@@ -141,7 +147,7 @@ public class CredentialOperationsTests
         ServerNode uses = Server("web-01", profile.Id, CredentialMode.Profile);
         document.Root.Children.Add(uses);
 
-        CredentialDeletion result = CredentialOperations.Delete(document, profile.Id);
+        CredentialDeletion result = CredentialOperations.Delete(document, profile.Id, Vault);
 
         Assert.Equal(1, result.Detached);
         Assert.Null(uses.Settings.CredentialProfileId);
@@ -158,7 +164,7 @@ public class CredentialOperationsTests
         document.Root.Children.Add(Server("web-02", profile.Id, CredentialMode.Profile));
         document.Root.Children.Add(Server("web-03"));
 
-        Assert.Equal(2, CredentialOperations.Delete(document, profile.Id).Detached);
+        Assert.Equal(2, CredentialOperations.Delete(document, profile.Id, Vault).Detached);
     }
 
     [Fact]
@@ -177,7 +183,7 @@ public class CredentialOperationsTests
         group.Children.Add(child);
         document.Root.Children.Add(group);
 
-        CredentialDeletion result = CredentialOperations.Delete(document, profile.Id);
+        CredentialDeletion result = CredentialOperations.Delete(document, profile.Id, Vault);
 
         Assert.Equal(1, result.Detached);
         Assert.Null(child.Settings.CredentialMode);
@@ -195,11 +201,13 @@ public class CredentialOperationsTests
         ServerNode node = Server("web-01", profile.Id, CredentialMode.CurrentUser);
         document.Root.Children.Add(node);
 
-        CredentialOperations.Delete(document, profile.Id);
+        CredentialOperations.Delete(document, profile.Id, Vault);
 
         Assert.Null(node.Settings.CredentialProfileId);
         Assert.Equal(CredentialMode.CurrentUser, node.Settings.CredentialMode);
     }
+
+    private static readonly CredentialVault Vault = new(UnavailableSecretProtector.Instance);
 
     private static ConnectionDocument WithNamed(string name)
     {

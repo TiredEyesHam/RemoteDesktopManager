@@ -99,8 +99,41 @@ public class SchemaMigrationTests
             ConnectionDocumentSerializer.DeserializeWithMigrationInfo(Version1);
 
         Assert.Equal(1, migratedFrom);
-        Assert.Equal(2, document.SchemaVersion);
+        Assert.Equal(ConnectionDocument.CurrentSchemaVersion, document.SchemaVersion);
         Assert.Null(document.MasterKey);
+    }
+
+    [Fact]
+    public void A_document_written_before_it_had_an_identity_is_given_one()
+    {
+        // The whole of what schema 3 is for (M3-04). Windows Credential
+        // Manager files an entry under the document that owns it, so a
+        // document with no identity can own nothing — which is exactly true of
+        // a version 2 document, and stops being true the moment this build
+        // saves it.
+        const string Version2 = """{"schemaVersion":2,"root":{"name":"Connections","children":[]}}""";
+
+        (ConnectionDocument document, int? migratedFrom) =
+            ConnectionDocumentSerializer.DeserializeWithMigrationInfo(Version2);
+
+        Assert.Equal(2, migratedFrom);
+        Assert.Equal(ConnectionDocument.CurrentSchemaVersion, document.SchemaVersion);
+        Assert.NotEqual(Guid.Empty, document.Id);
+        Assert.Null(document.CredentialStore);
+    }
+
+    [Fact]
+    public void An_identity_survives_a_round_trip_rather_than_being_minted_again()
+    {
+        // The failure this guards is silent and total: a document whose id
+        // changed on every load would abandon every password it keeps in
+        // Windows, and nothing about the file would look wrong.
+        ConnectionDocument document = new();
+
+        ConnectionDocument reopened =
+            ConnectionDocumentSerializer.Deserialize(ConnectionDocumentSerializer.Serialize(document));
+
+        Assert.Equal(document.Id, reopened.Id);
     }
 
     [Fact]
@@ -134,7 +167,7 @@ public class SchemaMigrationTests
         RenameHostMigration migration = new(fromVersion: 0);
 
         (string result, int? migratedFrom) =
-            SchemaMigrator.Migrate(VersionZeroDocument, [migration, new MasterKeyMigration()]);
+            SchemaMigrator.Migrate(VersionZeroDocument, [migration, new MasterKeyMigration(), new SecretStoreMigration()]);
 
         Assert.True(migration.WasApplied);
         Assert.Equal(0, migratedFrom);
@@ -149,7 +182,7 @@ public class SchemaMigrationTests
         (ConnectionDocument document, int? migratedFrom) =
             ConnectionDocumentSerializer.DeserializeWithMigrationInfo(
                 VersionZeroDocument,
-                [new RenameHostMigration(fromVersion: 0), new MasterKeyMigration()]);
+                [new RenameHostMigration(fromVersion: 0), new MasterKeyMigration(), new SecretStoreMigration()]);
 
         Assert.Equal(0, migratedFrom);
         Assert.Equal(ConnectionDocument.CurrentSchemaVersion, document.SchemaVersion);

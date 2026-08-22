@@ -816,8 +816,16 @@ public class MasterPasswordTests
         // the file at all.
         ConnectionDocument document = Protected(new MachineStore(), 1);
 
-        Assert.Equal(2, document.SchemaVersion);
-        Assert.Equal(2, SchemaMigrator.ReadVersion(ConnectionDocumentSerializer.Serialize(document)));
+        // Two is the version that knows about masterKey, so anything from
+        // there on is a reader that will not drop it. Stated as a floor rather
+        // than as an equality because later versions keep the guarantee — and
+        // pinned to the current version as well, so that a document written
+        // today is not quietly stamped older than the build that wrote it.
+        Assert.True(document.SchemaVersion >= 2);
+        Assert.Equal(ConnectionDocument.CurrentSchemaVersion, document.SchemaVersion);
+        Assert.Equal(
+            ConnectionDocument.CurrentSchemaVersion,
+            SchemaMigrator.ReadVersion(ConnectionDocumentSerializer.Serialize(document)));
     }
 
     // ── Nothing prints a key ────────────────────────────────────────────

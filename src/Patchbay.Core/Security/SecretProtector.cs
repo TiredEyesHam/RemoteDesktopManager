@@ -104,6 +104,24 @@ public abstract class SecretProtector : ISecretProtector
         return UnprotectCore(envelope.Payload.Span);
     }
 
+    /// <inheritdoc />
+    public void Forget(string? storedText)
+    {
+        // The same checks as a read and in the same order, because the
+        // question is the same one: is this a blob of mine? Deleting on a
+        // looser test than reading is how a scheme forgets somebody else's
+        // secret, and unlike a bad read a bad delete cannot be taken back.
+        if (!SecretEnvelope.TryParse(storedText, out SecretEnvelope? envelope)
+            || envelope.Version > SecretEnvelope.CurrentVersion
+            || !string.Equals(envelope.Scheme, Scheme, StringComparison.Ordinal)
+            || !IsAvailable)
+        {
+            return;
+        }
+
+        ForgetCore(envelope.Payload.Span);
+    }
+
     /// <summary>
     /// Protects the secret and returns the payload to put in the envelope.
     /// Called only when <see cref="IsAvailable"/>.
@@ -118,4 +136,20 @@ public abstract class SecretProtector : ISecretProtector
     /// not exceptional.
     /// </summary>
     protected abstract SecretUnprotectResult UnprotectCore(ReadOnlySpan<byte> payload);
+
+    /// <summary>
+    /// Releases whatever this payload names outside the document. Nothing by
+    /// default, which is right for every store that puts the ciphertext in the
+    /// document and wrong for exactly one (M3-04).
+    ///
+    /// <para>
+    /// Must not throw. It is called while tidying up after something that has
+    /// already succeeded — a password replaced, a profile deleted — and
+    /// turning a completed change into an exception because a stale entry
+    /// could not be removed would undo the wrong half of it.
+    /// </para>
+    /// </summary>
+    protected virtual void ForgetCore(ReadOnlySpan<byte> payload)
+    {
+    }
 }

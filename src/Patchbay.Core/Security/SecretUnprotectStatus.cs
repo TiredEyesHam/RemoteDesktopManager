@@ -58,4 +58,17 @@ public enum SecretUnprotectStatus
     /// document is merely locked sends them somewhere useless.
     /// </summary>
     Locked = 6,
+
+    /// <summary>
+    /// The blob is a reference, and what it refers to is not here (M3-04).
+    /// A Credential Manager entry that this machine does not have: the
+    /// document has moved, or somebody removed it in Windows.
+    ///
+    /// Separate from <see cref="Unreadable"/> because the two are only the
+    /// same from a distance. Unreadable means the secret is present and shut;
+    /// this means it is absent, and the sentence has to say so — somebody
+    /// hunting for a password Patchbay says it saved needs to be told which
+    /// half of Windows to go and look in.
+    /// </summary>
+    Missing = 7,
 }

@@ -55,4 +55,12 @@ public sealed class UnavailableSecretProtector : ISecretProtector
             SecretEnvelope.TryParse(storedText, out _)
                 ? SecretUnprotectStatus.Unavailable
                 : SecretUnprotectStatus.NotASecret);
+
+    /// <summary>
+    /// Nothing to release, because nothing was ever reserved. This protector
+    /// refuses to write, so no document holds an envelope it made.
+    /// </summary>
+    public void Forget(string? storedText)
+    {
+    }
 }

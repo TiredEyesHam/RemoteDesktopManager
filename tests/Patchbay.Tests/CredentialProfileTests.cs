@@ -190,9 +190,10 @@ public class CredentialProfileTests
     [Fact]
     public void Forgetting_a_password_keeps_the_account()
     {
-        (_, CredentialProfile profile) = WithProfile(Vault());
+        CredentialVault vault = Vault();
+        (_, CredentialProfile profile) = WithProfile(vault);
 
-        CredentialVault.ClearPassword(profile);
+        vault.ClearPassword(profile);
 
         Assert.False(profile.HasPassword);
         Assert.Equal("svc-deploy", profile.UserName);

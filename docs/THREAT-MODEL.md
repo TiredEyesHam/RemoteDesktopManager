@@ -33,7 +33,7 @@ them:
 | A hostile file offered for import | yes | `.rdg` files circulate as "here are the servers" |
 | A hostile or compromised RDP server | partly | It sees what the session sends it, which is the point |
 | Code running as the signed-in user | **no** | Out of reach, see above |
-| A user with local administrator rights | with a master password | Without one they can read another user's DPAPI store |
+| A user with local administrator rights | with a master password | Without one they can read another user's DPAPI store, and Credential Manager is no different |
 
 ## At rest
 
@@ -51,10 +51,19 @@ base64, it names which store can open it so a document can hold blobs from
 more than one, and it lets a file written by a later version be refused
 politely rather than reported as corrupt.
 
-There are two schemes. `dpapi` is Windows data protection scoped to
+There are three schemes. `dpapi` is Windows data protection scoped to
 `CurrentUser` with a fixed application entropy, and it is what a document uses
-until somebody says otherwise. `master` is a key derived from a password the
-person chooses, and it is what a document uses once they have (`M3-07`).
+until somebody says otherwise. `wincred` is Windows Credential Manager, where
+the document holds a name and Windows holds the password (`M3-04`). `master` is
+a key derived from a password the person chooses, and it takes precedence over
+either while it is on (`M3-07`).
+
+Which one writes the next password is `credentialStore` in the document, and it
+is not a claim about what the document already contains. Reads dispatch on what
+each blob says it is, so a document is routinely mixed and stays that way — a
+blob this Windows account cannot read is left exactly where it is rather than
+being moved or overwritten. A document naming a store this build does not have
+refuses to save rather than falling back to one it does.
 
 ### `dpapi`
 
@@ -73,6 +82,52 @@ The consequences are worth being blunt about:
 
 The honest summary is that a `dpapi` blob is protected against the file moving
 and against nothing else.
+
+### `wincred`
+
+Windows Credential Manager, as a generic credential per saved password, target
+name `Patchbay/{document}/{entry}`.
+
+The cryptography is the same. A Credential Manager entry is protected by the
+same user-scoped Windows data protection a `dpapi` blob is, so nothing in the
+list above stops being true: a local administrator still reads it, code running
+as the signed-in user still reads it, and it still does not travel. Choosing
+this over `dpapi` on grounds of strength would be choosing at random.
+
+What changes is where the ciphertext is:
+
+- **The document carries no password material.** With `dpapi` a file put on a
+  share, attached to a ticket or committed by accident carries an encrypted
+  password with it — useless to whoever picks it up, and theirs to keep and
+  attack offline for as long as they like. With `wincred` it carries a 16-byte
+  identifier and nothing else. The same goes for every backup beside it.
+- **The document stops being sufficient.** Restore it on a fresh machine and
+  the connections are all there and none of the passwords are. A `dpapi`
+  document at least still holds them for the account that wrote it.
+  `SecretUnprotectStatus.Missing` exists to say which of the two happened —
+  absent is not the same as shut, and the person needs telling which.
+- **Two things now have to agree.** The store can hold entries the document has
+  forgotten, and the document can name entries the store no longer has. Every
+  place that stops referring to a saved password releases it — replacing one,
+  clearing one, deleting a profile, moving to another store — and what escapes
+  that (a crash between the write and the save, a document restored from a
+  backup) is swept on request.
+
+Two decisions inside it are worth stating. Persistence is
+`CRED_PERSIST_LOCAL_MACHINE` and not `CRED_PERSIST_ENTERPRISE`: the roaming
+option would push saved passwords into domain profile storage, which is a
+different security claim and not one to make on somebody's behalf. And the
+stored value is 16 bytes rather than the target name, so that a hand-edited
+document cannot name an arbitrary credential in the person's store and have
+Patchbay read it back and hand it to a server.
+
+The sweep is scoped to one document, and that is a safety property rather than
+tidiness. Patchbay opens one file at a time but a person may have several, all
+filing entries in the same Windows store. A sweep that deleted every Patchbay
+entry the open document did not mention would delete the other document's
+passwords, silently, while tidying up. Entries therefore carry the document
+they belong to, which errs towards leaving an orphan behind rather than towards
+destroying a password.
 
 ### `master`
 
@@ -117,12 +172,21 @@ What it buys, and what it costs:
   dictionary. 600,000 is OWASP's figure for this function and costs about
   90 ms per unlock on the machine this was written on.
 
-A document with a master password is **schema version 2**, and the bump matters
-more than any field added so far. An unrecognised property is dropped on
+A document with a master password is **schema version 2 or later**, and the bump
+matters more than any field added so far. An unrecognised property is dropped on
 deserialisation and gone on the next save; for a setting that loses a setting,
 and for `masterKey` it loses the only copy of the key wrapping every password
 in the file. So a build that has never heard of it refuses to open the document
 rather than quietly discarding it.
+
+**Schema version 3** is the same guard for `id` (`M3-04`). A document that keeps
+its passwords in Credential Manager files them under its own identity, so a
+build that dropped the id would write the file back without one, the next load
+would mint a fresh one, and every password the document keeps in Windows would
+be filed under an id nothing refers to — present, unreachable, and invisible to
+the sweep meant to clear it up. `credentialStore` did not need the bump and does
+not have one of its own: dropping it loses a preference, and every blob already
+written still names the scheme that wrote it.
 
 A locked document is a working document. The tree, the editor, the import and
 every connection that does not use a saved password all behave normally; the
@@ -140,10 +204,15 @@ written, not the protection it has now.**
 That is not a general caution; it was measured. Turning on a master password
 re-protects the document and leaves every previous version beside it holding
 `pb1:dpapi:` blobs that still open under Windows data protection alone. The
-master password panel says so, counts them, and offers to delete them — offers
-rather than does, because a backup is what recovers a document from a bad save
-and the moment just after changing how it is protected is a poor one to have
-none.
+security panel says so, counts them, and offers to delete them — offers rather
+than does, because a backup is what recovers a document from a bad save and the
+moment just after changing how it is protected is a poor one to have none.
+
+Moving the passwords out to Credential Manager has exactly the same shape and
+the same warning. The document afterwards carries no password material and the
+copies beside it still do, which matters more here than for a master password:
+the reason to choose `wincred` in the first place is usually that the file is
+going somewhere, and it is the backups people forget to look at.
 
 The same applies to any copy Patchbay did not make. Pointing the document at a
 synced folder means the sync service holds every version it ever saw.
@@ -361,7 +430,7 @@ badge that is always wrong is one people stop reading.
 | Copies made outside Patchbay keep the protection they were made with | nothing can reach them |
 | A password handed to the RDP control must be a `string` | not fixable at this layer |
 | Secret buffers are not locked out of the swap file | `VirtualLock`, not built |
-| No Credential Manager store | `M3-04` |
+| A document's Credential Manager entries are stranded if its `id` is lost | restore an older backup and they become unreachable |
 | A secret concatenated into a message template is not redactable | review, not run time |
 | No signed release, so no way to verify what you ran | `M7` |
 

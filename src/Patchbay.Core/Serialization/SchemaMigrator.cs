@@ -18,6 +18,7 @@ public static class SchemaMigrator
     public static IReadOnlyList<ISchemaMigration> Registered { get; } =
     [
         new MasterKeyMigration(),
+        new SecretStoreMigration(),
     ];
 
     /// <summary>Reads the schema version from raw JSON without deserialising it.</summary>

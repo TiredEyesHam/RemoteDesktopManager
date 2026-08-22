@@ -1018,11 +1018,13 @@
                 </Grid>
             </Border>
 
-            <!-- Master password (M3-07). One panel for three states: a
-                 document with none offers to take one, a locked one asks for
-                 it, an open one offers to change or remove it. Shares the
-                 editor's column with the sign-in manager, for the same reason
-                 they share it with the editor. -->
+            <!-- Where the saved passwords live (M3-07, M3-04). One panel
+                 for three states of the master password — a document with
+                 none offers to take one, a locked one asks for it, an open
+                 one offers to change or remove it — and for the choice of
+                 Windows store underneath it, which is the same question at a
+                 lower stake. Shares the editor's column with the sign-in
+                 manager, for the same reason they share it with the editor. -->
             <Border Grid.Column="3"
                     Style="{StaticResource Panel}"
                     Width="404"
@@ -1045,6 +1047,52 @@
 
                     <ScrollViewer Grid.Row="1" Margin="22,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
+                            <!-- The Windows stores, above the master password
+                                 rather than below it: it is the choice most
+                                 documents make and the only one most of them
+                                 ever need. Hidden while a master password is
+                                 on, because that is what protects the saved
+                                 passwords then. -->
+                            <StackPanel Margin="0,0,0,18"
+                                        Visibility="{Binding CanChooseStore, Converter={x:Static conv:ValueConverters.BoolToVisibility}}">
+                                <TextBlock Style="{StaticResource Caption}" Text="Where saved passwords are kept" />
+
+                                <ItemsControl ItemsSource="{Binding Stores}" Margin="0,4,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Padding="10,8"
+                                                    Margin="0,0,0,6"
+                                                    CornerRadius="4"
+                                                    Background="{DynamicResource BrushSurfaceRaised}">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Foreground="{DynamicResource BrushText}" Text="{Binding Label}" />
+                                                        <TextBlock Style="{StaticResource Caption}"
+                                                                   Margin="8,0,0,0"
+                                                                   VerticalAlignment="Center"
+                                                                   Text="in use"
+                                                                   Visibility="{Binding IsCurrent, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+                                                    </StackPanel>
+
+                                                    <TextBlock Style="{StaticResource Caption}"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,2,0,0"
+                                                               Text="{Binding Description}" />
+
+                                                    <Button Style="{StaticResource GhostButton}"
+                                                            Margin="0,8,0,0"
+                                                            HorizontalAlignment="Left"
+                                                            Content="Move the saved passwords here"
+                                                            CommandParameter="{Binding Scheme}"
+                                                            Command="{Binding DataContext.UseStoreCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            Visibility="{Binding CanChoose, Converter={x:Static conv:ValueConverters.BoolToVisibility}}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
                             <TextBlock Style="{StaticResource Caption}" Text="{Binding PasswordLabel}" />
 
                             <!-- Not bound, for the same reason as the docked
@@ -1112,6 +1160,24 @@
                                         HorizontalAlignment="Left"
                                         Content="{Binding ForgetOlderCopiesLabel}"
                                         Command="{Binding ForgetOlderCopiesCommand}" />
+                            </StackPanel>
+
+                            <!-- What Windows is holding on this document's
+                                 behalf (M3-04). Said whether or not any of it
+                                 is stale, because it is the one place somebody
+                                 can see that Patchbay has put something
+                                 outside its own file. -->
+                            <StackPanel Margin="0,4,0,12"
+                                        Visibility="{Binding ShowExternalEntries, Converter={x:Static conv:ValueConverters.BoolToVisibility}}">
+                                <TextBlock Style="{StaticResource Caption}"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding ExternalEntriesText}" />
+
+                                <Button Style="{StaticResource GhostButton}"
+                                        Margin="0,8,0,0"
+                                        HorizontalAlignment="Left"
+                                        Content="Delete the ones nothing uses"
+                                        Command="{Binding ForgetOrphansCommand}" />
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

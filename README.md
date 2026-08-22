@@ -11,7 +11,7 @@ setting inheritance, tabbed sessions, and nothing else in the way.
 > hosted and tabbed, driven by the full settings surface, and it reconnects
 > itself when a link drops. It is not yet something to run day to day: there is
 > no logging, no installer and no release.
-> 62 of the 122 items planned for v1 are done — see
+> 63 of the 122 items planned for v1 are done — see
 > [`docs/BACKLOG.md`](docs/BACKLOG.md), where every box is ticked with a note on
 > what was actually verified.
 
@@ -25,8 +25,9 @@ setting inheritance, tabbed sessions, and nothing else in the way.
 - Live tabbed RDP sessions over `mstscax.dll` — gateway, redirection, display,
   performance and security settings all applied and verified against the real
   control — with auto-reconnect and readable disconnect reasons
-- Secrets encrypted at rest with DPAPI, or behind an optional document master
-  password (AES-256-GCM under a key derived with PBKDF2-HMAC-SHA256)
+- Secrets encrypted at rest with DPAPI or kept in Windows Credential Manager,
+  and either way optionally behind a document master password (AES-256-GCM
+  under a key derived with PBKDF2-HMAC-SHA256)
 
 Roughly: the model, the tree and the RDP engine are largely in place; the
 credential UI, the application shell services and everything release-shaped are
@@ -79,9 +80,12 @@ Connection documents hold hostnames, addresses and encrypted credential blobs.
 They are gitignored by default — do not commit one.
 
 Saved passwords are protected for the current Windows account by default, which
-defends against the file moving and against nothing else. A document master
-password defends against the machine's own administrator too, at the cost of
-being unrecoverable if forgotten.
+defends against the file moving and against nothing else. They can be kept in
+Windows Credential Manager instead — the same protection, but the document
+itself then carries no password material, so a copy of it can go somewhere a
+copy of the passwords should not. A document master password defends against
+the machine's own administrator too, at the cost of being unrecoverable if
+forgotten.
 
 Importers parse untrusted XML. RDCMan was pulled in 2020 over an XXE in exactly
 that code path, so every importer prohibits DTD processing and runs with

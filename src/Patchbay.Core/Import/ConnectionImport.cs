@@ -7,26 +7,29 @@ namespace Patchbay.Core.Import;
 /// together (M1-14).
 ///
 /// <para>
-/// The two formats are not alike in shape. A <c>.rdg</c> is a whole tree with
-/// its own groups and its own root, and a <c>.rdp</c> is one connection with
-/// no structure at all — which is why importing a folder of them is ordinary
-/// and importing a folder of <c>.rdg</c> files is not. Both end up in one
-/// group so that what arrived can be looked at before it is mixed in with what
-/// was already there.
+/// The formats are not alike in shape. A <c>.rdg</c> and a <c>confCons.xml</c>
+/// are whole trees with their own groups and their own roots; a <c>.rdp</c> is
+/// one connection with no structure at all — which is why importing a folder of
+/// those is ordinary and importing a folder of the others is not. Everything
+/// ends up in one group, so that what arrived can be looked at before it is
+/// mixed in with what was already there.
 /// </para>
 ///
 /// <para>
 /// The extension decides, and an extension this does not know is refused
 /// rather than guessed at. Sniffing the contents of a file that arrived from
 /// somewhere else, to decide which parser to hand it to, is a way of letting
-/// the file choose — and the whole point of having two readers is that each
-/// one knows what it is looking at.
+/// the file choose — and the whole point of having a reader per format is that
+/// each one knows what it is looking at. <c>.xml</c> is the one extension that
+/// names no format, so it goes to the mRemoteNG reader, which refuses anything
+/// whose root element is not its own. That is a reader checking its own input
+/// rather than a router guessing.
 /// </para>
 /// </summary>
 public static class ConnectionImport
 {
     /// <summary>What can be imported, lower case and with the dot.</summary>
-    public static IReadOnlyList<string> Extensions { get; } = [".rdg", ".rdp"];
+    public static IReadOnlyList<string> Extensions { get; } = [".rdg", ".rdp", ".xml"];
 
     /// <summary>Whether a path is one of the formats Patchbay reads.</summary>
     public static bool CanImport(string? path) =>
@@ -68,8 +71,8 @@ public static class ConnectionImport
             if (!CanImport(path))
             {
                 ImportException unknown = new(
-                    $"Patchbay imports .rdg and .rdp files, and '{Path.GetFileName(path)}' is "
-                    + "neither.");
+                    $"Patchbay imports .rdg, .rdp and mRemoteNG .xml files, and "
+                    + $"'{Path.GetFileName(path)}' is none of them.");
 
                 first ??= unknown;
                 warnings.Add(unknown.Message);
@@ -78,7 +81,9 @@ public static class ConnectionImport
 
             try
             {
-                results.Add(RdgImporter.ImportFile(path));
+                results.Add(IsXml(path)
+                    ? MremoteNgImporter.ImportFile(path)
+                    : RdgImporter.ImportFile(path));
             }
             catch (ImportException ex)
             {
@@ -113,14 +118,19 @@ public static class ConnectionImport
         return Combine(results, warnings);
     }
 
-    private static bool IsRdp(string path) =>
-        string.Equals(Path.GetExtension(path), ".rdp", StringComparison.OrdinalIgnoreCase);
+    private static bool IsRdp(string path) => Is(path, ".rdp");
+
+    private static bool IsXml(string path) => Is(path, ".xml");
+
+    private static bool Is(string path, string extension) =>
+        string.Equals(Path.GetExtension(path), extension, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Puts several imports into one group. A <c>.rdg</c> keeps its own root
-    /// as a group inside it, because that root carries the settings everything
-    /// below it inherits; a <c>.rdp</c> has no root of its own worth keeping,
-    /// so its connections go in directly.
+    /// Puts several imports into one group. A <c>.rdg</c> or a
+    /// <c>confCons.xml</c> keeps its own root as a group inside it, because
+    /// that root carries the settings everything below it inherits; a
+    /// <c>.rdp</c> has no root of its own worth keeping, so its connections go
+    /// in directly.
     /// </summary>
     private static ImportResult Combine(IReadOnlyList<ImportResult> results, List<string> warnings)
     {

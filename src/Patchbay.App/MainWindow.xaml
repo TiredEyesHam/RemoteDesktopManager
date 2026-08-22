@@ -510,7 +510,7 @@
                 <Button Style="{StaticResource GhostButton}"
                         Content="Import"
                         Margin="4,0,0,0"
-                        ToolTip="Import RDCMan (.rdg) or Remote Desktop (.rdp) files"
+                        ToolTip="Import RDCMan (.rdg), Remote Desktop (.rdp) or mRemoteNG (.xml) files"
                         Command="{Binding ImportFilesCommand}" />
                 <Button Content="New group" Margin="8,0,0,0" Command="{Binding NewGroupCommand}" />
                 <Button Style="{StaticResource PrimaryButton}"

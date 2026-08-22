@@ -132,9 +132,10 @@ public partial class App : Application
         {
             Title = "Import connections",
             Filter =
-                "Connection files (*.rdg;*.rdp)|*.rdg;*.rdp"
+                "Connection files (*.rdg;*.rdp;*.xml)|*.rdg;*.rdp;*.xml"
                 + "|RDCMan files (*.rdg)|*.rdg"
                 + "|Remote Desktop files (*.rdp)|*.rdp"
+                + "|mRemoteNG files (*.xml)|*.xml"
                 + "|All files (*.*)|*.*",
             CheckFileExists = true,
             Multiselect = true,

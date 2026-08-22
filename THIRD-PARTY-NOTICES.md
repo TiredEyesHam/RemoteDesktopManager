@@ -43,8 +43,17 @@ None of these reach a released binary.
 
 ## File formats
 
-The RDCMan `.rdg` importer was written against the format, not against anybody's
-source. RDCMan itself was never open source, and no code from it — or from any
-other connection manager — is present here. The same must hold for the importers
-still to come: mRemoteNG is GPL-2.0, and reading its file format is fine while
-copying its code would bind this repository to terms it has not chosen.
+Every importer was written against the format, not against anybody's source. No
+code from RDCMan, from `mstsc.exe`, from mRemoteNG or from any other connection
+manager is present here, and the same must hold for the ones still to come.
+
+- **RDCMan `.rdg`** — RDCMan was never open source, so there was nothing to
+  copy even if copying had been the intention.
+- **Remote Desktop `.rdp`** — Microsoft documents the settings, and the reader
+  was written from that.
+- **mRemoteNG `confCons.xml`** — mRemoteNG is GPL-2.0 and Patchbay is
+  GPL-3.0-or-later, which are incompatible in that direction: lifting even a
+  helper out of their tree would bind this repository to terms it has not
+  chosen, and the remedy would be relicensing rather than deleting a file.
+  Reading a file format is a different act, and it is the one that was
+  performed.

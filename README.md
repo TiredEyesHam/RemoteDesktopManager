@@ -11,7 +11,7 @@ setting inheritance, tabbed sessions, and nothing else in the way.
 > hosted and tabbed, driven by the full settings surface, and it reconnects
 > itself when a link drops. It is not yet something to run day to day: there is
 > no logging, no installer and no release.
-> 64 of the 122 items planned for v1 are done — see
+> 67 of the 122 items planned for v1 are done — see
 > [`docs/BACKLOG.md`](docs/BACKLOG.md), where every box is ticked with a note on
 > what was actually verified.
 
@@ -20,7 +20,9 @@ setting inheritance, tabbed sessions, and nothing else in the way.
 - The model: groups, servers, and settings that inherit down the tree with
   per-host overrides, resolved back to the node each value came from
 - Storage: atomic saves with rotating backups, schema-versioned, migration hook
-- Import from RDCMan `.rdg`, including its own inheritance flags
+- Import from RDCMan `.rdg` and mRemoteNG `confCons.xml`, inheritance flags
+  and all — theirs map onto Patchbay's null-means-inherit without resolving
+  anything
 - Import Remote Desktop `.rdp` files, one or a folderful at a time — and a
   file that arrived from somewhere else cannot switch on a redirection
   Patchbay leaves off
@@ -41,7 +43,7 @@ not.
 - Credential profiles, and prompting when a session needs a sign-in it has not
   been given
 - Undo and redo across every edit to the tree
-- Import from mRemoteNG; export back out to `.rdg` and `.rdp`
+- Export back out to `.rdg` and `.rdp`
 - Light and dark themes that follow the system
 - Logging, a crash handler, an installer and a signed release
 
@@ -99,7 +101,12 @@ end your drives, your smart card reader and your microphone, name a program to
 run instead of a desktop, and ask the client not to check who it is connecting
 to. So an imported file may switch a redirection off, but never on — everything
 it asked for and did not get is named in the warnings, and turning any of it on
-is a decision made in the inspector.
+is a decision made in the inspector. An inventory is a different bet: importing
+somebody's whole estate is already an act of trust, so a `.rdg` or a
+`confCons.xml` comes across as configured, with a count of what it hands over.
+
+No importer decrypts a saved password. Two of the three formats could not be
+read if Patchbay wanted to; the third could, and is left alone on purpose.
 
 [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) sets out what is protected, what
 is not, and the gaps that are still open. Read it before changing an importer,

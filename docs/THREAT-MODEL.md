@@ -30,7 +30,7 @@ them:
 |---|---|---|
 | Someone who obtains the document file | yes | Backups, sync folders, a stolen laptop, a support ticket attachment |
 | Another user on the same machine | yes | Shared workstations, service accounts |
-| A hostile file offered for import | yes | `.rdg` files circulate as "here are the servers", and a `.rdp` arrives by email |
+| A hostile file offered for import | yes | `.rdg` and `confCons.xml` files circulate as "here are the servers", and a `.rdp` arrives by email |
 | A hostile or compromised RDP server | partly | It sees what the session sends it, which is the point |
 | Code running as the signed-in user | **no** | Out of reach, see above |
 | A user with local administrator rights | with a master password | Without one they can read another user's DPAPI store, and Credential Manager is no different |
@@ -344,13 +344,13 @@ Serilog-aware analyser in the build rather than anything at run time.
 
 ## Import parsing
 
-There are two formats and two different problems. A `.rdg` is a document
-somebody built and kept, and the danger is in the parser. A `.rdp` is a
-message that arrives — emailed by a supplier, downloaded from a portal, left
-on a share — and the danger is in the file doing exactly what the format
-allows.
+There are three formats and two different problems. A `.rdg` and an mRemoteNG
+`confCons.xml` are inventories somebody built and kept, and the danger is in
+the parser. A `.rdp` is a message that arrives — emailed by a supplier,
+downloaded from a portal, left on a share — and the danger is in the file
+doing exactly what the format allows.
 
-### XML (`.rdg`)
+### XML (`.rdg` and `confCons.xml`)
 
 Every XML reader of a file someone else produced goes through `SafeXml`:
 `DtdProcessing.Prohibit`, `XmlResolver = null`, `MaxCharactersFromEntities = 0`,
@@ -416,9 +416,47 @@ file that appears to hold no settings at all.
 `RdpImporterSecurityTests` is the gate for all of it, the same way
 `RdgImporterSecurityTests` is for the XML.
 
-`M3-12` re-runs this review for every new importer. `.rdg` and `.rdp` have had
-it; mRemoteNG (`M1-15`) has not been written yet. `M1-12` does not ship until
-it passes.
+### mRemoteNG (`confCons.xml`)
+
+An inventory, not an invitation, so the rule above is not applied to it. A
+`.rdp` is one connection circulating as an attachment; a `confCons.xml` is
+somebody's whole estate, imported because it was asked for. Silently dropping
+the drive redirection they configured on forty connections would be losing
+their work rather than defending them. What it gets instead is a count: a file
+whose connections hand this computer's drives, smart card reader, ports or
+microphone to the far end says so in a sentence, as do connections set to
+connect without checking the server's identity and connections with network
+level authentication switched off.
+
+**That is a residual risk and it is named rather than closed.** A hostile
+inventory can turn a redirection on, for this format and for `.rdg` alike.
+What makes it a different bet from a `.rdp` is that importing somebody's whole
+estate is already an act of trusting them wholesale, where opening a single
+attached connection is not.
+
+**Passwords are counted and never decrypted, and here that is a decision
+rather than a limitation.** RDCMan's blobs and a `.rdp`'s `password 51` are
+DPAPI-protected to whoever saved them, so they cannot be read at all.
+mRemoteNG encrypts under a key derived from a password that defaults to a
+value published in its own documentation, so these could be. Reading somebody's
+credential store because the key is guessable is a thing to do deliberately,
+with the person watching, and not in the middle of an import.
+
+Two smaller things. A connection is only imported if it resolves to RDP, and
+the protocol is followed up the tree rather than assumed, because a folder that
+says SSH with connections that inherit is an ordinary file. And full file
+encryption is detected before the parse rather than after: what mRemoteNG
+writes then is not XML at all, and "this file is not valid XML" sends somebody
+looking for a corrupt file when what they have is a working one they need a
+password for.
+
+`MremoteNgImporterSecurityTests` re-runs the whole XML battery through this
+reader rather than assuming the shared parser covers it. The settings live on
+one object, and a change to it would break both readers while only one of them
+had tests.
+
+`M3-12` re-runs this review for every new importer. All three have had it.
+`M1-12` does not ship until it passes, and it now does.
 
 ## Clipboard
 
@@ -488,6 +526,7 @@ badge that is always wrong is one people stop reading.
 | Secret buffers are not locked out of the swap file | `VirtualLock`, not built |
 | A document's Credential Manager entries are stranded if its `id` is lost | restore an older backup and they become unreachable |
 | A signed `.rdp` is imported without its signature being checked | nothing claims a publisher either |
+| An imported inventory can switch a redirection on | counted and reported, not refused; `.rdp` is the exception |
 | A secret concatenated into a message template is not redactable | review, not run time |
 | No signed release, so no way to verify what you ran | `M7` |
 

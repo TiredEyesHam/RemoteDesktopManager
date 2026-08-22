@@ -508,10 +508,10 @@
                         ToolTip="The master password protecting this document"
                         Command="{Binding ManageSecurityCommand}" />
                 <Button Style="{StaticResource GhostButton}"
-                        Content="Import .rdg"
+                        Content="Import"
                         Margin="4,0,0,0"
-                        ToolTip="Import a Remote Desktop Connection Manager file"
-                        Command="{Binding ImportRdgCommand}" />
+                        ToolTip="Import RDCMan (.rdg) or Remote Desktop (.rdp) files"
+                        Command="{Binding ImportFilesCommand}" />
                 <Button Content="New group" Margin="8,0,0,0" Command="{Binding NewGroupCommand}" />
                 <Button Style="{StaticResource PrimaryButton}"
                         Content="New connection"

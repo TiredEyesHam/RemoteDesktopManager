@@ -22,6 +22,25 @@ public sealed record ImportResult(
     int GroupCount,
     int ServerCount)
 {
+    /// <summary>
+    /// Whether <see cref="Root"/> is a container the importer invented rather
+    /// than something the file described.
+    ///
+    /// A single <c>.rdp</c> holds one connection and no structure at all, so
+    /// the group around it exists only because this type needs one. Saying so
+    /// lets the caller put the connection straight into the tree instead of a
+    /// folder holding one thing — and keeps it from doing the same to a
+    /// <c>.rdg</c>, whose root group carries settings its children inherit.
+    /// </summary>
+    public bool RootIsWrapper { get; init; }
+
+    /// <summary>
+    /// What to put in the tree: the connection itself where the group around
+    /// it is scaffolding, and the group everywhere else.
+    /// </summary>
+    public ConnectionNode Node =>
+        RootIsWrapper && Root.Children is [ConnectionNode only] ? only : Root;
+
     /// <summary>A sentence summarising the import, for the status line.</summary>
     public string Summary
     {

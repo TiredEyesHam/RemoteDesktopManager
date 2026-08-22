@@ -45,7 +45,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private static readonly TimeSpan ClipboardTick = TimeSpan.FromSeconds(1);
 
     private readonly IConnectionStore _store;
-    private readonly Func<string?>? _chooseImportFile;
+    private readonly Func<IReadOnlyList<string>?>? _chooseImportFiles;
     private readonly SecretClipboard _clipboard;
     private readonly Stopwatch _sinceClipboardTick = new();
     private readonly DispatcherTimer _clipboardTimer;
@@ -114,8 +114,8 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     private SessionTabViewModel? _activeTab;
 
     /// <param name="store">Where the document is read from and written to.</param>
-    /// <param name="chooseImportFile">
-    /// Asks for a file to import, returning null if the person changes their
+    /// <param name="chooseImportFiles">
+    /// Asks for files to import, returning null if the person changes their
     /// mind. Supplied by the window: the file dialog is a WPF type, and
     /// reaching for it in here would put a modal box inside the view model.
     /// </param>
@@ -126,7 +126,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     /// </param>
     public ShellViewModel(
         IConnectionStore store,
-        Func<string?>? chooseImportFile = null,
+        Func<IReadOnlyList<string>?>? chooseImportFiles = null,
         IRemoteSessionHost? sessionHost = null,
         IReadOnlyList<ISecretProtector>? secretStores = null,
         ISystemClipboard? clipboard = null)
@@ -134,7 +134,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         ArgumentNullException.ThrowIfNull(store);
 
         _store = store;
-        _chooseImportFile = chooseImportFile;
+        _chooseImportFiles = chooseImportFiles;
 
         // The document's protection, whichever it is using (M3-07, M3-04).
         // Everything downstream holds this rather than a store, so a document
@@ -533,39 +533,57 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task ImportRdgAsync()
+    private async Task ImportFilesAsync()
     {
         if (Editor is { IsDirty: true } dirty)
         {
-            _afterDiscard = () => ImportRdgCommand.Execute(null);
+            _afterDiscard = () => ImportFilesCommand.Execute(null);
             dirty.IsDiscardPromptVisible = true;
             return;
         }
 
-        if (_chooseImportFile?.Invoke() is not { } path)
+        if (_chooseImportFiles?.Invoke() is not { Count: > 0 } paths)
         {
             return;
         }
 
         Editor = null;
 
-        await ImportAsync(path).ConfigureAwait(true);
+        await ImportAsync(paths).ConfigureAwait(true);
     }
 
-    /// <summary>
-    /// Imports an RDCMan file into a group of its own, rather than merging it
-    /// into the tree. Someone importing a colleague's file wants to see what
-    /// arrived before it is mixed in with what they already had, and moving a
-    /// group afterwards is one drag.
-    /// </summary>
-    public async Task ImportAsync(string path)
+    /// <summary>Imports one file.</summary>
+    public Task ImportAsync(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        if (Root is not { } root)
+        return ImportAsync([path]);
+    }
+
+    /// <summary>
+    /// Imports into a group of its own rather than merging into the tree.
+    /// Someone importing a colleague's file wants to see what arrived before
+    /// it is mixed in with what they already had, and moving a group
+    /// afterwards is one drag.
+    ///
+    /// <para>
+    /// A single <c>.rdp</c> is the exception, and it is the importer that says
+    /// so (<see cref="ImportResult.Node"/>): one connection put in a folder of
+    /// its own is a folder to tidy up rather than anything to look over.
+    /// </para>
+    /// </summary>
+    public async Task ImportAsync(IReadOnlyList<string> paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+
+        if (Root is not { } root || paths.Count == 0)
         {
             return;
         }
+
+        string what = paths.Count == 1
+            ? Path.GetFileName(paths[0])
+            : $"{paths.Count} files";
 
         ImportResult result;
 
@@ -573,16 +591,16 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
         {
             // Off the interface thread: parsing is bounded but not instant,
             // and a large estate should not freeze the window.
-            result = await Task.Run(() => RdgImporter.ImportFile(path)).ConfigureAwait(true);
+            result = await Task.Run(() => ConnectionImport.From(paths)).ConfigureAwait(true);
         }
         catch (ImportException ex)
         {
-            Notice = $"{Path.GetFileName(path)} could not be imported. {ex.Message}";
+            Notice = $"{what} could not be imported. {ex.Message}";
             Status = "Import failed";
             return;
         }
 
-        GroupNode imported = result.Root;
+        ConnectionNode imported = result.Node;
         imported.Name = NodeOperations.UniqueName((GroupNode)root.Model, imported.Name);
 
         NodeViewModel added = root.AddChild(imported);
@@ -595,7 +613,7 @@ public sealed partial class ShellViewModel : ObservableObject, IDisposable
             Environment.NewLine + Environment.NewLine,
             new[] { result.Summary }.Concat(result.Warnings));
 
-        await SaveAsync($"Imported {Path.GetFileName(path)}").ConfigureAwait(true);
+        await SaveAsync($"Imported {what}").ConfigureAwait(true);
     }
 
     /// <summary>

@@ -11,7 +11,7 @@ setting inheritance, tabbed sessions, and nothing else in the way.
 > hosted and tabbed, driven by the full settings surface, and it reconnects
 > itself when a link drops. It is not yet something to run day to day: there is
 > no logging, no installer and no release.
-> 63 of the 122 items planned for v1 are done — see
+> 64 of the 122 items planned for v1 are done — see
 > [`docs/BACKLOG.md`](docs/BACKLOG.md), where every box is ticked with a note on
 > what was actually verified.
 
@@ -21,6 +21,9 @@ setting inheritance, tabbed sessions, and nothing else in the way.
   per-host overrides, resolved back to the node each value came from
 - Storage: atomic saves with rotating backups, schema-versioned, migration hook
 - Import from RDCMan `.rdg`, including its own inheritance flags
+- Import Remote Desktop `.rdp` files, one or a folderful at a time — and a
+  file that arrived from somewhere else cannot switch on a redirection
+  Patchbay leaves off
 - The tree: templates, selection, editing, search
 - Live tabbed RDP sessions over `mstscax.dll` — gateway, redirection, display,
   performance and security settings all applied and verified against the real
@@ -38,7 +41,7 @@ not.
 - Credential profiles, and prompting when a session needs a sign-in it has not
   been given
 - Undo and redo across every edit to the tree
-- Import from mRemoteNG and plain `.rdp`; export back out to both
+- Import from mRemoteNG; export back out to `.rdg` and `.rdp`
 - Light and dark themes that follow the system
 - Logging, a crash handler, an installer and a signed release
 
@@ -87,9 +90,16 @@ copy of the passwords should not. A document master password defends against
 the machine's own administrator too, at the cost of being unrecoverable if
 forgotten.
 
-Importers parse untrusted XML. RDCMan was pulled in 2020 over an XXE in exactly
-that code path, so every importer prohibits DTD processing and runs with
-`XmlResolver` set to null.
+Importers read files somebody else wrote. RDCMan was pulled in 2020 over an XXE
+in exactly that code path, so every XML importer prohibits DTD processing and
+runs with `XmlResolver` set to null.
+
+A `.rdp` is not XML and its risk is a different one: the format can hand the far
+end your drives, your smart card reader and your microphone, name a program to
+run instead of a desktop, and ask the client not to check who it is connecting
+to. So an imported file may switch a redirection off, but never on — everything
+it asked for and did not get is named in the warnings, and turning any of it on
+is a decision made in the inspector.
 
 [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) sets out what is protected, what
 is not, and the gaps that are still open. Read it before changing an importer,

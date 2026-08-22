@@ -79,7 +79,7 @@ public partial class App : Application
         // quietly write them somewhere else (M3-04).
         ShellViewModel shell = new(
             store,
-            ChooseRdgFile,
+            ChooseImportFiles,
             sessionHost,
             [DpapiSecretProtector.ForCurrentUser(), new CredentialManagerSecretProtector()],
             new WindowsClipboard());
@@ -116,20 +116,30 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Asks for an RDCMan file. Lives here rather than in the view model
+    /// Asks for files to import. Lives here rather than in the view model
     /// because it is a WPF dialog, and returns null when the person changes
     /// their mind.
+    ///
+    /// <para>
+    /// Several at once, because a <c>.rdp</c> holds one connection: somebody
+    /// moving off <c>mstsc.exe</c> has a folder of them and no interest in
+    /// doing this forty times.
+    /// </para>
     /// </summary>
-    private static string? ChooseRdgFile()
+    private static string[]? ChooseImportFiles()
     {
         OpenFileDialog dialog = new()
         {
-            Title = "Import from Remote Desktop Connection Manager",
-            Filter = "RDCMan files (*.rdg)|*.rdg|All files (*.*)|*.*",
+            Title = "Import connections",
+            Filter =
+                "Connection files (*.rdg;*.rdp)|*.rdg;*.rdp"
+                + "|RDCMan files (*.rdg)|*.rdg"
+                + "|Remote Desktop files (*.rdp)|*.rdp"
+                + "|All files (*.*)|*.*",
             CheckFileExists = true,
-            Multiselect = false,
+            Multiselect = true,
         };
 
-        return dialog.ShowDialog() is true ? dialog.FileName : null;
+        return dialog.ShowDialog() is true ? dialog.FileNames : null;
     }
 }

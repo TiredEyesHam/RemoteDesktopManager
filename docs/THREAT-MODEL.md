@@ -30,7 +30,7 @@ them:
 |---|---|---|
 | Someone who obtains the document file | yes | Backups, sync folders, a stolen laptop, a support ticket attachment |
 | Another user on the same machine | yes | Shared workstations, service accounts |
-| A hostile file offered for import | yes | `.rdg` files circulate as "here are the servers" |
+| A hostile file offered for import | yes | `.rdg` files circulate as "here are the servers", and a `.rdp` arrives by email |
 | A hostile or compromised RDP server | partly | It sees what the session sends it, which is the point |
 | Code running as the signed-in user | **no** | Out of reach, see above |
 | A user with local administrator rights | with a master password | Without one they can read another user's DPAPI store, and Credential Manager is no different |
@@ -344,7 +344,15 @@ Serilog-aware analyser in the build rather than anything at run time.
 
 ## Import parsing
 
-Every reader of a file someone else produced goes through `SafeXml`:
+There are two formats and two different problems. A `.rdg` is a document
+somebody built and kept, and the danger is in the parser. A `.rdp` is a
+message that arrives — emailed by a supplier, downloaded from a portal, left
+on a share — and the danger is in the file doing exactly what the format
+allows.
+
+### XML (`.rdg`)
+
+Every XML reader of a file someone else produced goes through `SafeXml`:
 `DtdProcessing.Prohibit`, `XmlResolver = null`, `MaxCharactersFromEntities = 0`,
 and a document size bound. Depth is bounded separately by the walker at
 `SafeXml.MaxDepth` (64), because deep nesting is legal XML and a few thousand
@@ -359,10 +367,58 @@ they are the gate, not the documentation.
 **Imported passwords are counted and never decrypted.** RDCMan's blobs are
 DPAPI-protected to whoever saved them, so reading one is usually impossible
 and always somebody else's decision. The importer reports how many it saw and
-imports none.
+imports none. The same holds for `password 51` in a `.rdp`, and there it is
+structural: `RdpFile` does not keep a binary value at all, so no blob is in
+memory for a node name, a warning or a log line to pick up.
 
-`M3-12` re-runs this review for every new importer. `M1-12` does not ship
-until it passes.
+### `.rdp`
+
+The format can say a great deal more than "here is a machine to connect to".
+It can hand the far end every drive on this computer, the smart card in its
+reader and the microphone; it can name a program to run instead of a desktop;
+and it can ask the client not to check who it is connecting to. In October
+2024 a campaign used signed `.rdp` attachments to do the first of those at
+scale.
+
+So the rule is one sentence: **an imported file may switch a redirection off,
+but it may not switch on one that Patchbay leaves off.** What counts as off is
+read from `ConnectionSettings.Defaults` rather than a list beside the rule, so
+it keeps meaning the same thing if a default ever moves. Nothing is dropped in
+silence — everything refused is named in the warnings, and turning any of it
+on afterwards is a checkbox in the inspector, which makes it a decision by the
+person rather than by the file.
+
+Three more things a file does not get to decide:
+
+- **The identity check.** `authentication level:i:0` is "connect anyway, and
+  say nothing". It is not imported, and the connection keeps the setting it
+  inherits. A session to a server that could not prove who it is looks pixel
+  for pixel like a session to one that could.
+- **The address.** It goes through `NodeValidator.IsValidHost`, the same check
+  as one somebody typed, so a file cannot put something into the tree that a
+  person could not have put there.
+- **How a name reads.** Display names and any text quoted back into a warning
+  are stripped of control characters and Unicode formatting characters. A
+  right-to-left override in a file name reads in the tree as an entirely
+  different machine from the one it connects to.
+
+A start program is quoted rather than counted: Patchbay opens desktops, so
+`alternate shell` and the RemoteApp settings are not imported whatever they
+say, and a file that arrived from somewhere else and names a program to run is
+the part worth reading before connecting.
+
+Parsing is bounded at `RdpFile.MaxCharacters` (1 MiB), checked while the file
+is being read rather than after, so a file made of one very long line is
+refused rather than allocated. The encoding comes from the byte order mark:
+`mstsc.exe` writes UTF-16, and reading one of its files as UTF-8 produces a
+file that appears to hold no settings at all.
+
+`RdpImporterSecurityTests` is the gate for all of it, the same way
+`RdgImporterSecurityTests` is for the XML.
+
+`M3-12` re-runs this review for every new importer. `.rdg` and `.rdp` have had
+it; mRemoteNG (`M1-15`) has not been written yet. `M1-12` does not ship until
+it passes.
 
 ## Clipboard
 
@@ -431,6 +487,7 @@ badge that is always wrong is one people stop reading.
 | A password handed to the RDP control must be a `string` | not fixable at this layer |
 | Secret buffers are not locked out of the swap file | `VirtualLock`, not built |
 | A document's Credential Manager entries are stranded if its `id` is lost | restore an older backup and they become unreachable |
+| A signed `.rdp` is imported without its signature being checked | nothing claims a publisher either |
 | A secret concatenated into a message template is not redactable | review, not run time |
 | No signed release, so no way to verify what you ran | `M7` |
 
